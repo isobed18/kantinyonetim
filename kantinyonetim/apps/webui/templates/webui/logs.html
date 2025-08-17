@@ -1,0 +1,351 @@
+{% extends 'webui/base.html' %}
+{% block content %}
+<script>ensureAuth();</script>
+<h2>Denetim Kayıtları</h2>
+<div class="row">
+  <div class="card" style="width:100%">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px">
+      <div>
+        <button onclick="loadLogs()" class="btn-primary">Yenile</button>
+        <button onclick="exportLogs()" class="btn-secondary">CSV Aktar</button>
+      </div>
+      <div class="logs-summary">
+        <span class="muted">Toplam Kayıt: <span id="totalLogs">0</span></span>
+      </div>
+    </div>
+    
+    <!-- Filtreler -->
+    <div style="margin-bottom:16px; padding:12px; background:#f8f9fa; border-radius:6px;">
+      <div style="display:flex; gap:12px; align-items:center; flex-wrap:wrap">
+        <div>
+          <label for="fUser" class="form-label">Kullanıcıya Göre Filtrele</label>
+          <input id="fUser" placeholder="Kullanıcı adı girin" style="width:200px"/>
+        </div>
+        <div>
+          <label for="fAction" class="form-label">Eyleme Göre Filtrele</label>
+          <select id="fAction" style="width:150px">
+            <option value="">Tüm Eylemler</option>
+            <option value="login">Giriş</option>
+            <option value="logout">Çıkış</option>
+            <option value="create">Oluştur</option>
+            <option value="update">Güncelle</option>
+            <option value="delete">Sil</option>
+            <option value="order_placed">Sipariş Verildi</option>
+            <option value="order_status_changed">Sipariş Durumu Değişti</option>
+            <option value="stock_updated">Stok Güncellendi</option>
+            <option value="user_created">Kullanıcı Oluşturuldu</option>
+            <option value="user_modified">Kullanıcı Düzenlendi</option>
+            <option value="price_changed">Fiyat Değişti</option>
+            <option value="item_cancelled">Öğe İptal Edildi</option>
+          </select>
+        </div>
+        <div>
+          <label for="fResource" class="form-label">Kaynağa Göre Filtrele</label>
+          <select id="fResource" style="width:150px">
+            <option value="">Tüm Kaynaklar</option>
+            <option value="order">Sipariş</option>
+            <option value="user">Kullanıcı</option>
+            <option value="stock">Stok</option>
+            <option value="menu">Menü</option>
+          </select>
+        </div>
+        <div>
+          <label for="fDateFrom" class="form-label">Başlangıç Tarihi</label>
+          <input id="fDateFrom" type="date" style="width:150px"/>
+        </div>
+        <div>
+          <label for="fDateTo" class="form-label">Bitiş Tarihi</label>
+          <input id="fDateTo" type="date" style="width:150px"/>
+        </div>
+        <button onclick="applyFilters()" class="btn-primary">Filtreleri Uygula</button>
+        <button onclick="clearFilters()" class="btn-outline">Temizle</button>
+      </div>
+    </div>
+    
+    <div id="logs"></div>
+    
+    <!-- Sayfalandırma -->
+    <div style="display:flex; justify-content:center; gap:8px; margin-top:20px">
+      <button onclick="prevPage()" class="btn-outline" id="prevBtn">Önceki</button>
+      <span id="pageInfo" class="muted"></span>
+      <button onclick="nextPage()" class="btn-outline" id="nextBtn">Sonraki</button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+  let currentUserRole = 'customer';
+  let allLogs = [];
+  let filteredLogs = [];
+  let filterUser = '';
+  let filterAction = '';
+  let filterResource = '';
+  let filterDateFrom = '';
+  let filterDateTo = '';
+  let currentPage = 0;
+  const logsPerPage = 50;
+
+  async function loadCurrentUserRole() {
+    try {
+      const res = await api('/api/users/me/');
+      if (res.ok) {
+        const me = await res.json();
+        currentUserRole = me.role || 'customer';
+        
+        // Only admin can access logs
+        if (currentUserRole !== 'admin') {
+          alert('Erişim reddedildi. Sadece yöneticiler denetim kayıtlarını görüntüleyebilir.');
+          window.location.href = '/';
+          return;
+        }
+      }
+    } catch (e) {
+      console.error('Kullanıcı rolü yüklenirken hata oluştu:', e);
+    }
+  }
+
+  async function loadLogs() {
+    try {
+      let url = '/api/audit-logs/?';
+      const params = new URLSearchParams();
+      if (filterUser) params.append('user', filterUser);
+      if (filterAction) params.append('action', filterAction);
+      if (filterResource) params.append('resource_type', filterResource);
+      if (filterDateFrom) params.append('date_from', filterDateFrom);
+      if (filterDateTo) params.append('date_to', filterDateTo);
+      url += params.toString();
+
+      const res = await api(url);
+      if (!res.ok) {
+        alert('Kayıtlar yüklenemedi');
+        return;
+      }
+      
+      allLogs = await res.json();
+      filteredLogs = allLogs; // Filtered data is already from backend
+      document.getElementById('totalLogs').innerText = filteredLogs.length;
+      currentPage = 0;
+      renderLogs();
+    } catch (error) {
+      console.error('Kayıtlar yüklenirken hata oluştu:', error);
+      alert('Kayıtlar yüklenemedi');
+    }
+  }
+
+  function applyFilters() {
+    filterUser = document.getElementById('fUser').value;
+    filterAction = document.getElementById('fAction').value;
+    filterResource = document.getElementById('fResource').value;
+    filterDateFrom = document.getElementById('fDateFrom').value;
+    filterDateTo = document.getElementById('fDateTo').value;
+    
+    // The backend now handles the filtering based on these parameters
+    // No client-side filtering needed here, just reload data
+    currentPage = 0;
+    loadLogs();
+  }
+
+  function clearFilters() {
+    document.getElementById('fUser').value = '';
+    document.getElementById('fAction').value = '';
+    document.getElementById('fResource').value = '';
+    document.getElementById('fDateFrom').value = '';
+    document.getElementById('fDateTo').value = '';
+    
+    applyFilters(); // Apply empty filters
+  }
+
+  function renderLogs() {
+    const start = currentPage * logsPerPage;
+    const end = start + logsPerPage;
+    const pageLogs = filteredLogs.slice(start, end);
+    
+    if (pageLogs.length === 0) {
+      document.getElementById('logs').innerHTML = '<div class="muted">Filtrelere uyan kayıt bulunamadı</div>';
+      document.getElementById('pageInfo').innerText = '';
+      return;
+    }
+    
+    const html = pageLogs.map(log => {
+      const timestamp = new Date(log.timestamp).toLocaleString('tr-TR', {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit'
+      });
+      
+      const details = log.details ? Object.entries(log.details).map(([key, value]) => {
+        if (key === 'changes' && typeof value === 'object' && value !== null) {
+          const changeEntries = Object.entries(value).map(([changeKey, changeValue]) => {
+            if (typeof changeValue === 'object' && changeValue !== null && 'old' in changeValue && 'new' in changeValue) {
+              return `<div><strong>${changeKey}:</strong> <span class="muted">Eski: ${changeValue.old}</span> → Yeni: ${changeValue.new}</div>`;
+            } else {
+              return `<div><strong>${changeKey}:</strong> ${value}</div>`;
+            }
+          }).join('');
+          return `<div><strong>${key}:</strong><div style="margin-left: 15px;">${changeEntries}</div></div>`;
+        } else {
+          return `<div><strong>${key}:</strong> ${value}</div>`;
+        }
+      }).join('') : '';
+      
+      return `
+        <div class="log-card">
+          <div class="log-header">
+            <div class="log-info">
+              <strong>${log.user_username}</strong>
+              <span class="chip action-${log.action}">${log.action.replace('_', ' ').toUpperCase()}</span>
+              <span class="muted">${timestamp}</span>
+              ${log.resource_type ? `<span class="resource-tag">${log.resource_type}</span>` : ''}
+            </div>
+            ${log.ip_address ? `<span class="ip-address">${log.ip_address}</span>` : ''}
+          </div>
+          ${details ? `<div class="log-details">${details}</div>` : ''}
+        </div>
+      `;
+    }).join('');
+    
+    document.getElementById('logs').innerHTML = html;
+    
+    // Update pagination
+    const totalPages = Math.ceil(filteredLogs.length / logsPerPage);
+    const startNum = start + 1;
+    const endNum = Math.min(end, filteredLogs.length);
+    document.getElementById('pageInfo').innerText = `Sayfa ${currentPage + 1} / ${totalPages} (${startNum}-${endNum} / ${filteredLogs.length})`;
+    
+    document.getElementById('prevBtn').disabled = currentPage === 0;
+    document.getElementById('nextBtn').disabled = currentPage >= totalPages - 1;
+  }
+
+  function prevPage() {
+    if (currentPage > 0) {
+      currentPage--;
+      renderLogs();
+    }
+  }
+
+  function nextPage() {
+    const totalPages = Math.ceil(filteredLogs.length / logsPerPage);
+    if (currentPage < totalPages - 1) {
+      currentPage++;
+      renderLogs();
+    }
+  }
+
+  function exportLogs() {
+    if (filteredLogs.length === 0) {
+      alert('Aktarılacak kayıt yok');
+      return;
+    }
+    
+    const csvContent = [
+      ['Kullanıcı', 'Eylem', 'Kaynak Türü', 'Kaynak ID', 'Detaylar', 'IP Adresi', 'Zaman Damgası'],
+      ...filteredLogs.map(log => [
+        log.user_username,
+        log.action,
+        log.resource_type || '',
+        log.resource_id || '',
+        JSON.stringify(log.details || {}),
+        log.ip_address || '',
+        log.timestamp
+      ])
+    ].map(row => row.map(field => `"${field}"`).join(',')).join('\n');
+    
+    const blob = new Blob([csvContent], { type: 'text/csv' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `denetim_kayitlari_${new Date().toISOString().split('T')[0]}.csv`;
+    a.click();
+    window.URL.revokeObjectURL(url);
+  }
+
+  // Initialize
+  loadCurrentUserRole();
+  loadLogs();
+</script>
+
+<style>
+  .log-card {
+    background: white;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius);
+    padding: 16px;
+    margin-bottom: 12px;
+    box-shadow: var(--shadow-sm);
+    transition: all 0.2s ease;
+  }
+
+  .log-card:hover {
+    box-shadow: var(--shadow-md);
+    transform: translateY(-1px);
+  }
+
+  .log-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+  }
+
+  .log-info {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+
+  .resource-tag {
+    background: var(--light-bg);
+    color: var(--text-secondary);
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 12px;
+    font-weight: 500;
+  }
+
+  .ip-address {
+    color: var(--text-muted);
+    font-size: 12px;
+    font-family: monospace;
+  }
+
+  .log-details {
+    background: var(--light-bg);
+    padding: 12px;
+    border-radius: var(--radius-sm);
+    font-size: 14px;
+    color: var(--text-secondary);
+  }
+
+  .action-login { background: #dcfce7; color: #16a34a; }
+  .action-logout { background: #fef3c7; color: #ca8a04; }
+  .action-create { background: #dbeafe; color: #2563eb; }
+  .action-update { background: #fef3c7; color: #ca8a04; }
+  .action-delete { background: #fee2e2; color: #dc2626; }
+  .action-order_placed { background: #ecfdf5; color: #059669; }
+  .action-order_status_changed { background: #fef3c7; color: #ca8a04; }
+  .action-stock_updated { background: #dbeafe; color: #2563eb; }
+  .action-user_created { background: #ecfdf5; color: #059669; }
+  .action-user_modified { background: #fef3c7; color: #ca8a04; }
+  .action-price_changed { background: #fef3c7; color: #ca8a04; }
+  .action-item_cancelled { background: #fee2e2; color: #dc2626; }
+
+  @media (max-width: 768px) {
+    .log-header {
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 8px;
+    }
+    
+    .log-info {
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 8px;
+    }
+  }
+</style>
+{% endblock %}

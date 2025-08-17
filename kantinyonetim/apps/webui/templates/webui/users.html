@@ -1,0 +1,681 @@
+{% extends 'webui/base.html' %}
+{% block content %}
+<script>ensureAuth();</script>
+<h2>Kullanıcı Yönetimi</h2>
+<div class="row">
+  <div class="card" style="width:100%">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px">
+      <div>
+        <button onclick="loadUsers()" class="btn-primary">Refresh</button>
+        <button onclick="showCreateUserForm()" class="btn-success">Create User</button>
+      </div>
+      <div class="users-summary">
+        <span class="muted">Toplam Kullanıcı: <span id="totalUsers">0</span></span>
+      </div>
+    </div>
+    
+    <!-- Filters -->
+    <div style="margin-bottom:16px; padding:12px; background:#f8f9fa; border-radius:6px;">
+      <div style="display:flex; gap:12px; align-items:center; flex-wrap:wrap">
+        <div>
+          <label for="fUsername" class="form-label">İsme Göre Filtrele</label>
+          <input id="fUsername" placeholder="Enter username" style="width:200px"/>
+        </div>
+        <div>
+          <label for="fRole" class="form-label">Role Göre Filtrele</label>
+          <select id="fRole" style="width:150px">
+            <option value="">Tüm roller</option>
+            <option value="customer">Müşteri</option>
+            <option value="staff">Çalışan</option>
+            <option value="admin">Yönetici</option>
+          </select>
+        </div>
+        <button onclick="applyFilters()" class="btn-primary">Filtreleri Uygula</button>
+        <button onclick="clearFilters()" class="btn-outline">Temizle</button>
+      </div>
+    </div>
+    
+    <div id="users"></div>
+  </div>
+</div>
+
+<!-- Create User Modal -->
+<div id="createUserModal" class="modal" style="display:none">
+  <div class="modal-content">
+    <div class="modal-header">
+      <h3>Yeni Kullanıcı Oluştur</h3>
+      <span class="close" onclick="closeCreateUserModal()">&times;</span>
+    </div>
+    <div class="modal-body">
+      <div style="display:flex; flex-direction:column; gap:16px">
+        <div>
+          <label for="newUsername" class="form-label">Kullanıcı Adı</label>
+          <input id="newUsername" placeholder="Kullanıcı adını gir" required/>
+        </div>
+        <div>
+          <label for="newPassword" class="form-label">Şifre</label>
+          <input id="newPassword" type="password" placeholder="Şifreyi gir" required/>
+          <div id="passwordStrength" class="password-strength" style="margin-top:4px; font-size:12px;"></div>
+        </div>
+        <div>
+          <label for="newRole" class="form-label">Rol</label>
+          <select id="newRole" required>
+            <option value="">Rolü seç</option>
+            <option value="customer">Müşteri</option>
+            <option value="staff">Çalışan</option>
+            <option value="admin">Yönetici</option>
+          </select>
+        </div>
+        <div>
+          <label for="newEmail" class="form-label">Email (Optional)</label>
+          <input id="newEmail" type="email" placeholder="Enter email"/>
+        </div>
+        <div>
+          <label for="newFirstName" class="form-label">First Name (Optional)</label>
+          <input id="newFirstName" placeholder="Enter first name"/>
+        </div>
+        <div>
+          <label for="newLastName" class="form-label">Last Name (Optional)</label>
+          <input id="newLastName" placeholder="Enter last name"/>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button onclick="createUser()" class="btn-primary">Create User</button>
+      <button onclick="closeCreateUserModal()" class="btn-outline">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- Edit User Modal -->
+<div id="editUserModal" class="modal" style="display:none">
+  <div class="modal-content">
+    <div class="modal-header">
+      <h3>Edit User</h3>
+      <span class="close" onclick="closeEditUserModal()">&times;</span>
+    </div>
+    <div class="modal-body">
+      <div style="display:flex; flex-direction:column; gap:16px">
+        <div>
+          <label for="editUsername" class="form-label">Username</label>
+          <input id="editUsername" placeholder="Enter username" required/>
+        </div>
+        <div>
+          <label for="editRole" class="form-label">Role</label>
+          <select id="editRole" required>
+            <option value="">Select role</option>
+            <option value="customer">Customer</option>
+            <option value="staff">Staff</option>
+            <option value="admin">Admin</option>
+          </select>
+        </div>
+        <div>
+          <label for="editEmail" class="form-label">Email</label>
+          <input id="editEmail" type="email" placeholder="Enter email"/>
+        </div>
+        <div>
+          <label for="editFirstName" class="form-label">First Name</label>
+          <input id="editFirstName" placeholder="Enter first name"/>
+        </div>
+        <div>
+          <label for="editLastName" class="form-label">Last Name</label>
+          <input id="editLastName" placeholder="Enter last name"/>
+        </div>
+        <div>
+          <label for="editPassword" class="form-label">New Password (leave empty to keep current)</label>
+          <input id="editPassword" type="password" placeholder="Enter new password"/>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button onclick="updateUser()" class="btn-primary">Update User</button>
+      <button onclick="closeEditUserModal()" class="btn-outline">Cancel</button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+  let currentUserRole = 'customer';
+  let allUsers = [];
+  let filteredUsers = [];
+  let filterUsername = '';
+  let filterRole = '';
+  let editingUserId = null;
+
+  async function loadCurrentUserRole() {
+    try {
+      const res = await api('/api/users/me/');
+      if (res.ok) {
+        const me = await res.json();
+        currentUserRole = me.role || 'customer';
+        
+        // Only admin can access user management
+        if (currentUserRole !== 'admin') {
+          alert('Access denied. Only administrators can manage users.');
+          window.location.href = '/';
+          return;
+        }
+      }
+    } catch (e) {
+      console.error('Failed to load user role:', e);
+    }
+  }
+
+  async function loadUsers() {
+    try {
+      const res = await api('/api/users/');
+      if (!res.ok) {
+        alert('Failed to load users');
+        return;
+      }
+      
+      allUsers = await res.json();
+      applyFilters();
+    } catch (error) {
+      console.error('Error loading users:', error);
+      alert('Failed to load users');
+    }
+  }
+
+  function applyFilters() {
+    filteredUsers = allUsers.filter(user => {
+      const byUsername = !filterUsername || user.username.toLowerCase().includes(filterUsername.toLowerCase());
+      const byRole = !filterRole || user.role === filterRole;
+      return byUsername && byRole;
+    });
+    
+    document.getElementById('totalUsers').innerText = filteredUsers.length;
+    renderUsers();
+  }
+
+  function clearFilters() {
+    filterUsername = '';
+    filterRole = '';
+    
+    const u = document.getElementById('fUsername'); if (u) u.value = '';
+    const r = document.getElementById('fRole'); if (r) r.value = '';
+    
+    applyFilters();
+  }
+
+  function renderUsers() {
+    if (filteredUsers.length === 0) {
+      document.getElementById('users').innerHTML = '<div class="muted">No users found matching the filters</div>';
+      return;
+    }
+    
+    const html = filteredUsers.map(user => `
+      <div class="user-card">
+        <div class="user-header">
+          <div class="user-info">
+            <strong>${user.username}</strong>
+            <span class="chip role-${user.role}">${user.role}</span>
+            ${user.email ? `<span class="user-email">${user.email}</span>` : ''}
+            ${user.first_name || user.last_name ? `<span class="user-name">${user.first_name || ''} ${user.last_name || ''}</span>` : ''}
+          </div>
+          <div class="user-actions">
+            <button onclick="editUser(${user.id})" class="btn-secondary">Edit</button>
+            <button onclick="deleteUser(${user.id})" class="btn-danger">Delete</button>
+          </div>
+        </div>
+        <div class="user-details">
+          <div class="detail-item">
+            <span class="detail-label">ID:</span>
+            <span class="detail-value">${user.id}</span>
+          </div>
+          <div class="detail-item">
+            <span class="detail-label">Created:</span>
+            <span class="detail-value">${user.date_joined ? new Date(user.date_joined).toLocaleDateString('tr-TR') : 'N/A'}</span>
+          </div>
+          <div class="detail-item">
+            <span class="detail-label">Last Login:</span>
+            <span class="detail-value">${user.last_login ? new Date(user.last_login).toLocaleDateString('tr-TR') : 'Never'}</span>
+          </div>
+        </div>
+      </div>
+    `).join('');
+    
+    document.getElementById('users').innerHTML = html;
+  }
+
+  function showCreateUserForm() {
+    document.getElementById('createUserModal').style.display = 'block';
+    document.body.style.overflow = 'hidden'; // Prevent background scroll
+    // Clear form
+    document.getElementById('newUsername').value = '';
+    document.getElementById('newPassword').value = '';
+    document.getElementById('newRole').value = '';
+    document.getElementById('newEmail').value = '';
+    document.getElementById('newFirstName').value = '';
+    document.getElementById('newLastName').value = '';
+  }
+
+  function closeCreateUserModal() {
+    document.getElementById('createUserModal').style.display = 'none';
+    document.body.style.overflow = ''; // Restore background scroll
+  }
+
+  function closeEditUserModal() {
+    document.getElementById('editUserModal').style.display = 'none';
+    document.body.style.overflow = ''; // Restore background scroll
+    editingUserId = null;
+  }
+
+  async function createUser() {
+    const username = document.getElementById('newUsername').value.trim();
+    const password = document.getElementById('newPassword').value;
+    const role = document.getElementById('newRole').value;
+    const email = document.getElementById('newEmail').value.trim();
+    const firstName = document.getElementById('newFirstName').value.trim();
+    const lastName = document.getElementById('newLastName').value.trim();
+    
+    if (!username || !password || !role) {
+      alert('Username, password, and role are required');
+      return;
+    }
+    
+    // Password strength validation
+    if (!isPasswordStrong(password)) {
+      alert('Password must be at least 8 characters long and contain uppercase, lowercase, number, and special character');
+      return;
+    }
+    
+    // Username validation
+    if (username.length < 3) {
+      alert('Username must be at least 3 characters long');
+      return;
+    }
+    
+    // Email validation if provided
+    if (email && !isValidEmail(email)) {
+      alert('Please enter a valid email address');
+      return;
+    }
+    
+    try {
+      const res = await api('/api/users/', {
+        method: 'POST',
+        body: JSON.stringify({
+          username,
+          password,
+          role,
+          email: email || '',
+          first_name: firstName || '',
+          last_name: lastName || ''
+        })
+      });
+      
+      if (res.ok) {
+        alert('User created successfully!');
+        closeCreateUserModal();
+        loadUsers();
+      } else {
+        const errorData = await res.json();
+        alert('Failed to create user: ' + JSON.stringify(errorData));
+      }
+    } catch (error) {
+      console.error('Error creating user:', error);
+      alert('Error creating user');
+    }
+  }
+
+  function isPasswordStrong(password) {
+    const minLength = 8;
+    const hasUpperCase = /[A-Z]/.test(password);
+    const hasLowerCase = /[a-z]/.test(password);
+    const hasNumbers = /\d/.test(password);
+    const hasSpecialChar = /[!@#$%^&*(),.?":{}|<>]/.test(password);
+    
+    return password.length >= minLength && hasUpperCase && hasLowerCase && hasNumbers && hasSpecialChar;
+  }
+
+  function isValidEmail(email) {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return emailRegex.test(email);
+  }
+
+  function checkPasswordStrength(password) {
+    const strengthDiv = document.getElementById('passwordStrength');
+    if (!password) {
+      strengthDiv.innerHTML = '';
+      return;
+    }
+    
+    const minLength = password.length >= 8;
+    const hasUpperCase = /[A-Z]/.test(password);
+    const hasLowerCase = /[a-z]/.test(password);
+    const hasNumbers = /\d/.test(password);
+    const hasSpecialChar = /[!@#$%^&*(),.?":{}|<>]/.test(password);
+    
+    let strength = 0;
+    let feedback = [];
+    
+    if (minLength) strength++;
+    if (hasUpperCase) strength++;
+    if (hasLowerCase) strength++;
+    if (hasNumbers) strength++;
+    if (hasSpecialChar) strength++;
+    
+    if (!minLength) feedback.push('At least 8 characters');
+    if (!hasUpperCase) feedback.push('Uppercase letter');
+    if (!hasLowerCase) feedback.push('Lowercase letter');
+    if (!hasNumbers) feedback.push('Number');
+    if (!hasSpecialChar) feedback.push('Special character');
+    
+    let strengthText = '';
+    let strengthClass = '';
+    
+    if (strength <= 2) {
+      strengthText = 'Weak';
+      strengthClass = 'weak';
+    } else if (strength <= 3) {
+      strengthText = 'Fair';
+      strengthClass = 'fair';
+    } else if (strength <= 4) {
+      strengthText = 'Good';
+      strengthClass = 'good';
+    } else {
+      strengthText = 'Strong';
+      strengthClass = 'strong';
+    }
+    
+    strengthDiv.innerHTML = `<span class="strength-${strengthClass}">${strengthText}</span>${feedback.length > 0 ? ` - Need: ${feedback.join(', ')}` : ''}`;
+  }
+
+  async function editUser(userId) {
+    const user = allUsers.find(u => u.id === userId);
+    if (!user) return;
+    
+    editingUserId = userId;
+    
+    // Populate form
+    document.getElementById('editUsername').value = user.username || '';
+    document.getElementById('editRole').value = user.role || '';
+    document.getElementById('editEmail').value = user.email || '';
+    document.getElementById('editFirstName').value = user.first_name || '';
+    document.getElementById('editLastName').value = user.last_name || '';
+    document.getElementById('editPassword').value = '';
+    
+    document.getElementById('editUserModal').style.display = 'block';
+  }
+
+  async function updateUser() {
+    if (!editingUserId) return;
+    
+    const username = document.getElementById('editUsername').value.trim();
+    const role = document.getElementById('editRole').value;
+    const email = document.getElementById('editEmail').value.trim();
+    const firstName = document.getElementById('editFirstName').value.trim();
+    const lastName = document.getElementById('editLastName').value.trim();
+    const password = document.getElementById('editPassword').value;
+    
+    if (!username || !role) {
+      alert('Username and role are required');
+      return;
+    }
+    
+    const updateData = {
+      username,
+      role,
+      email: email || '',
+      first_name: firstName || '',
+      last_name: lastName || ''
+    };
+    
+    if (password) {
+      updateData.password = password;
+    }
+    
+    try {
+      const res = await api(`/api/users/${editingUserId}/`, {
+        method: 'PUT',
+        body: JSON.stringify(updateData)
+      });
+      
+      if (res.ok) {
+        alert('User updated successfully!');
+        closeEditUserModal();
+        loadUsers();
+      } else {
+        const errorData = await res.json();
+        alert('Failed to update user: ' + JSON.stringify(errorData));
+      }
+    } catch (error) {
+      console.error('Error updating user:', error);
+      alert('Error updating user');
+    }
+  }
+
+  async function deleteUser(userId) {
+    if (!confirm('Are you sure you want to delete this user? This action cannot be undone.')) {
+      return;
+    }
+    
+    try {
+      const res = await api(`/api/users/${userId}/`, {
+        method: 'DELETE'
+      });
+      
+      if (res.ok) {
+        alert('User deleted successfully!');
+        loadUsers();
+      } else {
+        const errorData = await res.json();
+        alert('Failed to delete user: ' + JSON.stringify(errorData));
+      }
+    } catch (error) {
+      console.error('Error deleting user:', error);
+      alert('Error deleting user');
+    }
+  }
+
+  // Close modal when clicking outside
+  window.onclick = function(event) {
+    const createModal = document.getElementById('createUserModal');
+    const editModal = document.getElementById('editUserModal');
+    
+    if (event.target === createModal) {
+      closeCreateUserModal();
+    }
+    if (event.target === editModal) {
+      closeEditUserModal();
+    }
+  }
+
+  // Initialize
+  loadCurrentUserRole();
+  loadUsers();
+  
+  // Add password strength checking
+  document.addEventListener('DOMContentLoaded', function() {
+    const passwordInput = document.getElementById('newPassword');
+    if (passwordInput) {
+      passwordInput.addEventListener('input', function() {
+        checkPasswordStrength(this.value);
+      });
+    }
+  });
+</script>
+
+<style>
+  .user-card {
+    background: white;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius);
+    padding: 20px;
+    margin-bottom: 16px;
+    box-shadow: var(--shadow-sm);
+    transition: all 0.2s ease;
+  }
+
+  .user-card:hover {
+    box-shadow: var(--shadow-md);
+    transform: translateY(-2px);
+  }
+
+  .user-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 16px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--border-color);
+  }
+
+  .user-info {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+
+  .user-actions {
+    display: flex;
+    gap: 8px;
+  }
+
+  .user-email, .user-name {
+    color: var(--text-secondary);
+    font-size: 14px;
+  }
+
+  .user-details {
+    display: flex;
+    gap: 24px;
+    flex-wrap: wrap;
+  }
+
+  .detail-item {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .detail-label {
+    font-size: 12px;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+
+  .detail-value {
+    font-weight: 500;
+    color: var(--text-secondary);
+  }
+
+  .role-customer { background: #dbeafe; color: #1e40af; }
+  .role-staff { background: #fef3c7; color: #92400e; }
+  .role-admin { background: #fecaca; color: #991b1b; }
+
+  /* Modal Styles */
+  .modal {
+    display: none;
+    position: fixed;
+    z-index: 1000;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0,0,0,0.5);
+  }
+
+  .modal-content {
+    background-color: white;
+    margin: 5% auto;
+    padding: 0;
+    border-radius: var(--radius);
+    width: 90%;
+    max-width: 500px;
+    box-shadow: var(--shadow-lg);
+    max-height: 90vh;
+    overflow-y: auto;
+  }
+
+  /* Password Strength Styles */
+  .password-strength {
+    font-size: 12px;
+    margin-top: 4px;
+  }
+
+  .strength-weak {
+    color: #dc2626;
+    font-weight: 600;
+  }
+
+  .strength-fair {
+    color: #ca8a04;
+    font-weight: 600;
+  }
+
+  .strength-good {
+    color: #16a34a;
+    font-weight: 600;
+  }
+
+  .strength-strong {
+    color: #059669;
+    font-weight: 600;
+  }
+
+  .modal-header {
+    padding: 20px;
+    border-bottom: 1px solid var(--border-color);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .modal-header h3 {
+    margin: 0;
+    color: var(--text-primary);
+  }
+
+  .close {
+    color: var(--text-muted);
+    font-size: 28px;
+    font-weight: bold;
+    cursor: pointer;
+    line-height: 1;
+  }
+
+  .close:hover {
+    color: var(--text-primary);
+  }
+
+  .modal-body {
+    padding: 20px;
+  }
+
+  .modal-footer {
+    padding: 20px;
+    border-top: 1px solid var(--border-color);
+    display: flex;
+    gap: 12px;
+    justify-content: flex-end;
+  }
+
+  @media (max-width: 768px) {
+    .user-header {
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 12px;
+    }
+    
+    .user-actions {
+      width: 100%;
+      justify-content: flex-start;
+    }
+    
+    .user-details {
+      flex-direction: column;
+      gap: 16px;
+    }
+    
+    .modal-content {
+      width: 95%;
+      margin: 10% auto;
+    }
+  }
+</style>
+{% endblock %}

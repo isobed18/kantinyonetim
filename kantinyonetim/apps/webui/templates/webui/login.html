@@ -1,0 +1,494 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Giriş - Kantin Yönetim</title>
+    <style>
+      :root {
+        --primary-color: #2563eb;
+        --primary-hover: #1d4ed8;
+        --secondary-color: #64748b;
+        --success-color: #16a34a;
+        --danger-color: #dc2626;
+        --light-bg: #f8fafc;
+        --border-color: #e2e8f0;
+        --text-primary: #1e293b;
+        --text-secondary: #64748b;
+        --text-muted: #94a3b8;
+        --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+        --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+        --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+        --radius: 12px;
+        --radius-sm: 8px;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body { 
+        font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; 
+        margin: 0; 
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        min-height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 20px;
+      }
+
+      .login-container {
+        background: white;
+        border-radius: var(--radius);
+        box-shadow: var(--shadow-lg);
+        padding: 40px;
+        width: 100%;
+        max-width: 400px;
+        text-align: center;
+        position: relative;
+        overflow: hidden;
+      }
+
+      .login-container::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 4px;
+        background: linear-gradient(90deg, var(--primary-color), var(--success-color));
+      }
+
+      .logo {
+        font-size: 2.5rem;
+        margin-bottom: 8px;
+        color: var(--primary-color);
+      }
+
+      .brand {
+        font-size: 1.5rem;
+        font-weight: 700;
+        color: var(--text-primary);
+        margin-bottom: 8px;
+      }
+
+      .subtitle {
+        color: var(--text-secondary);
+        margin-bottom: 32px;
+        font-size: 1rem;
+      }
+
+      .form-group {
+        margin-bottom: 20px;
+        text-align: left;
+      }
+
+      .form-label {
+        display: block;
+        margin-bottom: 8px;
+        font-weight: 500;
+        color: var(--text-primary);
+        font-size: 14px;
+      }
+
+      .form-input {
+        width: 100%;
+        padding: 14px 16px;
+        border: 2px solid var(--border-color);
+        border-radius: var(--radius-sm);
+        font-size: 16px;
+        transition: all 0.2s ease;
+        background: white;
+      }
+
+      .form-input:focus {
+        outline: none;
+        border-color: var(--primary-color);
+        box-shadow: 0 0 0 3px rgb(37 99 235 / 0.1);
+        transform: translateY(-1px);
+      }
+
+      .form-input::placeholder {
+        color: var(--text-muted);
+      }
+
+      .login-btn {
+        width: 100%;
+        padding: 16px;
+        background: var(--primary-color);
+        color: white;
+        border: none;
+        border-radius: var(--radius-sm);
+        font-size: 16px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        margin-top: 8px;
+      }
+
+      .login-btn:hover:not(:disabled) {
+        background: var(--primary-hover);
+        transform: translateY(-2px);
+        box-shadow: var(--shadow-md);
+      }
+
+      .login-btn:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+        transform: none;
+      }
+
+      .status {
+        margin-top: 20px;
+        padding: 12px;
+        border-radius: var(--radius-sm);
+        font-weight: 500;
+        font-size: 14px;
+      }
+
+      .status.success {
+        background: #dcfce7;
+        color: var(--success-color);
+        border: 1px solid #bbf7d0;
+      }
+
+      .status.error {
+        background: #fee2e2;
+        color: var(--danger-color);
+        border: 1px solid #fecaca;
+      }
+
+      .status.info {
+        background: #dbeafe;
+        color: var(--primary-color);
+        border: 1px solid #bfdbfe;
+      }
+
+      .demo-info {
+        margin-top: 24px;
+        padding: 16px;
+        background: var(--light-bg);
+        border-radius: var(--radius-sm);
+        border: 1px solid var(--border-color);
+        text-align: left;
+      }
+
+      .demo-info h4 {
+        margin: 0 0 12px 0;
+        color: var(--text-primary);
+        font-size: 14px;
+        font-weight: 600;
+      }
+
+      .demo-accounts {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        font-size: 12px;
+      }
+
+      .demo-account {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 8px 12px;
+        background: white;
+        border-radius: 6px;
+        border: 1px solid var(--border-color);
+      }
+
+      .demo-account .role {
+        font-weight: 600;
+        color: var(--primary-color);
+      }
+
+      .demo-account .credentials {
+        color: var(--text-secondary);
+        font-family: monospace;
+      }
+
+      .copy-btn {
+        background: var(--secondary-color);
+        color: white;
+        border: none;
+        border-radius: 4px;
+        padding: 4px 8px;
+        font-size: 10px;
+        cursor: pointer;
+        transition: background 0.2s ease;
+      }
+
+      .copy-btn:hover {
+        background: #475569;
+      }
+
+      .footer {
+        margin-top: 24px;
+        color: var(--text-muted);
+        font-size: 12px;
+      }
+
+      @media (max-width: 480px) {
+        .login-container {
+          padding: 24px;
+          margin: 20px;
+        }
+        
+        .logo {
+          font-size: 2rem;
+        }
+        
+        .brand {
+          font-size: 1.25rem;
+        }
+      }
+
+      /* Loading animation */
+      .loading {
+        position: relative;
+        color: transparent;
+      }
+
+      .loading::after {
+        content: '';
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        width: 20px;
+        height: 20px;
+        border: 2px solid transparent;
+        border-top: 2px solid white;
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+      }
+
+      @keyframes spin {
+        0% { transform: translate(-50%, -50%) rotate(0deg); }
+        100% { transform: translate(-50%, -50%) rotate(360deg); }
+      }
+
+      /* Success animation */
+      .success-animation {
+        animation: successPulse 0.6s ease-out;
+      }
+
+      @keyframes successPulse {
+        0% { transform: scale(1); }
+        50% { transform: scale(1.05); }
+        100% { transform: scale(1); }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="login-container">
+      <div class="logo">🍽️</div>
+      <div class="brand">Kantin Yönetim</div>
+      <div class="subtitle">Kantin Yönetim Sistemi</div>
+      
+      <form id="loginForm" onsubmit="handleLogin(event)">
+        <div class="form-group">
+          <label for="username" class="form-label">Kullanıcı Adı</label>
+          <input 
+            type="text" 
+            id="username" 
+            name="username" 
+            class="form-input" 
+            placeholder="Kullanıcı adınızı girin"
+            required
+            autocomplete="username"
+          />
+        </div>
+        
+        <div class="form-group">
+          <label for="password" class="form-label">Şifre</label>
+          <input 
+            type="password" 
+            id="password" 
+            name="password" 
+            class="form-input" 
+            placeholder="Şifrenizi girin"
+            required
+            autocomplete="current-password"
+          />
+        </div>
+        
+        <button type="submit" id="loginBtn" class="login-btn">
+          <span id="loginBtnText">🚪 Giriş Yap</span>
+        </button>
+      </form>
+      
+      <div id="loginStatus" class="status" style="display:none"></div>
+      
+      <div class="demo-info">
+        <h4>Demo Hesapları</h4>
+        <div class="demo-accounts">
+          <div class="demo-account">
+            <div>
+              <span class="role">Yönetici:</span>
+              <span class="credentials">admin / 123Admin$</span>
+            </div>
+            <button class="copy-btn" onclick="copyCredentials('admin', '123Admin$')">Doldur</button>
+          </div>
+          <div class="demo-account">
+            <div>
+              <span class="role">Personel:</span>
+              <span class="credentials">staff / 123Staff$</span>
+            </div>
+            <button class="copy-btn" onclick="copyCredentials('staff', '123Staff$')">Doldur</button>
+          </div>
+          <div class="demo-account">
+            <div>
+              <span class="role">Müşteri:</span>
+              <span class="credentials">customer / 123Customer$</span>
+            </div>
+            <button class="copy-btn" onclick="copyCredentials('customer', '123Customer$')">Doldur</button>
+          </div>
+        </div>
+      </div>
+      
+      <div class="footer">
+        <p>© 2024 Kantin Yönetim. Tüm hakları saklıdır.</p>
+        <p>Staj Projesi - Kantin Yönetim Sistemi</p>
+      </div>
+    </div>
+
+    <script>
+      let isLoggingIn = false;
+
+      async function handleLogin(event) {
+        event.preventDefault();
+        
+        if (isLoggingIn) return;
+        
+        const username = document.getElementById('username').value.trim();
+        const password = document.getElementById('password').value;
+        
+        if (!username || !password) {
+          showStatus('Lütfen kullanıcı adı ve şifre girin', 'error');
+          return;
+        }
+        
+        isLoggingIn = true;
+        setLoginButtonLoading(true);
+        hideStatus();
+        
+        try {
+          const response = await fetch('/api/token/', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ username, password }),
+          });
+          
+          const data = await response.json();
+          
+          if (response.ok) {
+            // Store tokens
+            localStorage.setItem('access', data.access);
+            if (data.refresh) {
+              localStorage.setItem('refresh', data.refresh);
+            }
+            
+            // Log successful login
+            // Note: This log happens on the client-side, the backend should ideally also log successful API token creation
+            const username = document.getElementById('username').value.trim();
+            fetch('/api/users/audit-logs/', { // Using the audit logs endpoint as a general logger for now
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${data.access}` // Use the newly obtained token
+              },
+              body: JSON.stringify({
+                action: 'login',
+                resource_type: 'user',
+                resource_id: null, // User ID can be fetched from token if needed, or left null
+                details: { username: username, status: 'success' },
+                ip_address: null, // Will be captured by backend
+                user_agent: navigator.userAgent
+              })
+            }).catch(e => console.error("Giriş işlemi günlüğe kaydedilemedi:", e));
+
+            showStatus('Giriş başarılı! Yönlendiriliyorsunuz...', 'success');
+            document.querySelector('.login-container').classList.add('success-animation');
+            
+            // Redirect to dashboard
+            setTimeout(() => {
+              window.location.href = '/';
+            }, 1000);
+          } else {
+            const errorMessage = data.detail || 'Giriş başarısız. Lütfen bilgilerinizi kontrol edin.';
+            showStatus(errorMessage, 'error');
+          }
+        } catch (error) {
+          console.error('Giriş hatası:', error);
+          showStatus('Ağ hatası. Lütfen tekrar deneyin.', 'error');
+        } finally {
+          isLoggingIn = false;
+          setLoginButtonLoading(false);
+        }
+      }
+
+      function setLoginButtonLoading(loading) {
+        const btn = document.getElementById('loginBtn');
+        const btnText = document.getElementById('loginBtnText');
+        
+        if (loading) {
+          btn.disabled = true;
+          btn.classList.add('loading');
+          btnText.textContent = 'Giriş yapılıyor...';
+        } else {
+          btn.disabled = false;
+          btn.classList.remove('loading');
+          btnText.textContent = '🚪 Giriş Yap';
+        }
+      }
+
+      function showStatus(message, type) {
+        const statusDiv = document.getElementById('loginStatus');
+        statusDiv.textContent = message;
+        statusDiv.className = `status ${type}`;
+        statusDiv.style.display = 'block';
+      }
+
+      function hideStatus() {
+        const statusDiv = document.getElementById('loginStatus');
+        statusDiv.style.display = 'none';
+      }
+
+      function copyCredentials(username, password) {
+        // Auto-fill the form fields
+        document.getElementById('username').value = username;
+        document.getElementById('password').value = password;
+        
+        // Show temporary success feedback
+        const btn = event.target;
+        const originalText = btn.textContent;
+        btn.textContent = 'Dolduruldu!';
+        btn.style.background = '#16a34a';
+        
+        // Focus on username field
+        document.getElementById('username').focus();
+        
+        setTimeout(() => {
+          btn.textContent = originalText;
+          btn.style.background = '';
+        }, 1500);
+      }
+
+      // Auto-focus username field
+      document.getElementById('username').focus();
+      
+      // Handle Enter key in password field
+      document.getElementById('password').addEventListener('keypress', function(e) {
+        if (e.key === 'Enter') {
+          handleLogin(e);
+        }
+      });
+    </script>
+  </body>
+</html>
+
+

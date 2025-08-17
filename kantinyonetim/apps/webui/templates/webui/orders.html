@@ -1,0 +1,336 @@
+{% extends 'webui/base.html' %}
+{% block content %}
+<script>ensureAuth();</script>
+<h2>Sipariş Yönetimi</h2>
+<div class="row">
+  <div class="card" style="width:100%">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px">
+      <div>
+        <button onclick="loadOrders()" class="btn-primary">Yenile</button>
+      </div>
+      <div class="orders-summary">
+        <span class="muted">Toplam Sipariş: <span id="totalOrders">0</span></span>
+      </div>
+    </div>
+    
+    <!-- Filtreler -->
+    <div id="filters" style="margin-bottom:16px; padding:12px; background:#f8f9fa; border-radius:6px;">
+      <div style="display:flex; gap:12px; align-items:center; flex-wrap:wrap">
+        <div>
+          <label for="fUser" class="form-label">Kullanıcı Adına Göre Filtrele</label>
+          <input id="fUser" placeholder="Kullanıcı adı girin" style="width:200px"/>
+        </div>
+        <div>
+          <label for="fItem" class="form-label">Ürüne Göre Filtrele</label>
+          <input id="fItem" placeholder="Ürün adı girin" style="width:220px"/>
+        </div>
+        <div>
+          <label for="fStatus" class="form-label">Duruma Göre Filtrele</label>
+          <select id="fStatus" style="width:150px">
+            <option value="">Tüm Durumlar</option>
+            <option value="pending">Beklemede</option>
+            <option value="preparing">Hazırlanıyor</option>
+            <option value="ready">Hazır</option>
+            <option value="completed">Tamamlandı</option>
+            <option value="cancelled">İptal Edildi</option>
+          </select>
+        </div>
+        <button onclick="applyFilters()" class="btn-primary">Filtreleri Uygula</button>
+        <button onclick="clearFilters()" class="btn-outline">Temizle</button>
+      </div>
+    </div>
+    
+    <div id="orders"></div>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+  let currentUserRole = 'customer';
+  let filterUser = '';
+  let filterItem = '';
+  let filterStatus = '';
+  let totalOrders = 0;
+
+  async function whoami() {
+    const res = await api('/api/users/me/');
+    if (!res.ok) return;
+    const me = await res.json();
+    if (me && me.role) currentUserRole = me.role;
+    
+    // Show/hide filters based on role
+    if (currentUserRole === 'customer') {
+      document.getElementById('filters').style.display = 'none';
+    }
+  }
+
+  async function cancelOrder(id) {
+    if (!confirm('Are you sure you want to cancel this order?')) return;
+    
+    const res = await api(`/api/orders/${id}/cancel/`, { method: 'POST' });
+    if (!res.ok) {
+      alert('Failed to cancel order');
+    } else {
+      loadOrders();
+    }
+  }
+
+  async function updateStatus(id, statusVal) {
+    const res = await api(`/api/orders/${id}/`, { method: 'PUT', body: JSON.stringify({ status: statusVal }) });
+    if (!res.ok) {
+      alert('Failed to update status');
+    } else {
+      loadOrders();
+    }
+  }
+
+  async function reassignOrder(orderId) {
+    const newUsername = prompt('Enter the username to reassign this order to:');
+    if (!newUsername) return;
+    
+    try {
+      // First find the user by username
+      const userRes = await api(`/api/users/search/?username=${newUsername}`);
+      if (!userRes.ok) {
+        alert('Failed to find user');
+        return;
+      }
+      
+      const users = await userRes.json();
+      if (users.length === 0) {
+        alert('User not found');
+        return;
+      }
+      
+      const targetUser = users[0];
+      
+      // Reassign the order
+      const res = await api(`/api/orders/${orderId}/reassign/`, { 
+        method: 'POST', 
+        body: JSON.stringify({ user: targetUser.id }) 
+      });
+      
+      if (!res.ok) {
+        const errorData = await res.json();
+        alert('Failed to reassign order: ' + JSON.stringify(errorData));
+      } else {
+        alert('Order reassigned successfully');
+        loadOrders();
+      }
+    } catch (error) {
+      console.error('Error reassigning order:', error);
+      alert('Failed to reassign order');
+    }
+  }
+
+  async function loadOrders() {
+    await whoami();
+    const res = await api('/api/orders/');
+    const orders = await res.json();
+    
+    const filtered = orders.filter(o => {
+      const byUser = !filterUser || (o.user_username || '').toLowerCase().includes(filterUser.toLowerCase());
+      const byItem = !filterItem || (o.order_items || []).some(i => (i.menu_item_name || '').toLowerCase().includes(filterItem.toLowerCase()));
+      const byStatus = !filterStatus || o.status === filterStatus;
+      return byUser && byItem && byStatus;
+    });
+    
+    totalOrders = filtered.length;
+    document.getElementById('totalOrders').innerText = totalOrders;
+    
+    if (filtered.length === 0) {
+      document.getElementById('orders').innerHTML = '<div class="muted">No orders found matching the filters</div>';
+      return;
+    }
+    
+    const html = filtered.map(o => {
+      const orderDate = new Date(o.created_at).toLocaleDateString('tr-TR', {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+      
+      let statusDate = '';
+      if (o.status === 'completed' && o.updated_at !== o.created_at) {
+        statusDate = `Completed: ${new Date(o.updated_at).toLocaleDateString('tr-TR', {
+          year: 'numeric',
+          month: 'short',
+          day: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit'
+        })}`;
+      } else if (o.status === 'cancelled' && o.updated_at !== o.created_at) {
+        statusDate = `Cancelled: ${new Date(o.updated_at).toLocaleDateString('tr-TR', {
+          year: 'numeric',
+          month: 'short',
+          day: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit'
+        })}`;
+      }
+      
+      return `
+        <div class="order-card">
+          <div class="order-header">
+            <div class="order-info">
+              <strong>Order #${o.id}</strong> 
+              <span class="chip status-${o.status}">${o.status}</span> 
+              <span class="muted">Total: ₺${o.total}</span>
+              <span class="order-date">Created: ${orderDate}</span>
+              ${statusDate ? `<span class="status-date">${statusDate}</span>` : ''}
+            </div>
+            <div class="order-actions">
+              ${(currentUserRole==='customer' && (o.status==='pending'||o.status==='preparing')) ? `<button onclick="cancelOrder(${o.id})" class="btn-danger">Cancel</button>` : ''}
+              ${currentUserRole!=='customer' ? `
+                <select id="statusSelect_${o.id}" class="status-select" ${o.status==='cancelled' ? 'disabled' : ''}>
+                  ${['pending','preparing','ready','completed','cancelled'].map(s => `<option value="${s}" ${o.status===s?'selected':''}>${s}</option>`).join('')}
+                </select>
+                <button onclick="saveOrderStatus(${o.id})" class="btn-primary" ${o.status==='cancelled' ? 'disabled' : ''}>Save Status</button>
+                <button onclick="reassignOrder(${o.id})" class="btn-warning">Reassign</button>
+                <button onclick="deleteOrder(${o.id})" class="btn-danger">Delete</button>
+              ` : ''}
+            </div>
+          </div>
+          
+          ${(currentUserRole!=='customer' && o.user_username) ? `<div class="order-customer"><span class="muted">Customer: ${o.user_username}</span></div>` : ''}
+          
+          <div class="order-items">
+            <table class="order-items-table">
+              <thead>
+                <tr>
+                  <th>ID</th>
+                  <th>Item</th>
+                  <th>Qty</th>
+                  <th>Price</th>
+                  <th>Line Total</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${(o.order_items || []).map(i => `
+                  <tr>
+                    <td>${i.id}</td>
+                    <td><strong>${i.menu_item_name}</strong></td>
+                    <td>${i.quantity}</td>
+                    <td>₺${i.price_at_order_time}</td>
+                    <td>₺${i.line_total}</td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+          </div>
+          
+          <div class="order-footer">
+            <button onclick="window.location.href='/orders/${o.id}'" class="btn-primary">View Details</button>
+          </div>
+        </div>
+      `;
+    }).join('');
+    
+    document.getElementById('orders').innerHTML = html;
+    
+    // Set filter values
+    if (currentUserRole!=='customer') {
+      const u = document.getElementById('fUser'); if (u) u.value = filterUser;
+    }
+    const i = document.getElementById('fItem'); if (i) i.value = filterItem;
+    const s = document.getElementById('fStatus'); if (s) s.value = filterStatus;
+  }
+
+  function applyFilters() {
+    const u = document.getElementById('fUser');
+    const i = document.getElementById('fItem');
+    const s = document.getElementById('fStatus');
+    
+    filterUser = u ? u.value : '';
+    filterItem = i ? i.value : '';
+    filterStatus = s ? s.value : '';
+    
+    loadOrders();
+  }
+
+  function clearFilters() {
+    filterUser = '';
+    filterItem = '';
+    filterStatus = '';
+    
+    const u = document.getElementById('fUser'); if (u) u.value = '';
+    const i = document.getElementById('fItem'); if (i) i.value = '';
+    const s = document.getElementById('fStatus'); if (s) s.value = '';
+    
+    loadOrders();
+  }
+
+  async function saveOrderStatus(id) {
+    const statusSelect = document.getElementById(`statusSelect_${id}`);
+    const newStatus = statusSelect.value;
+    
+    const order = (await api(`/api/orders/${id}/`)).json();
+    const currentOrderStatus = order.status;
+
+    if (newStatus === 'cancelled' && currentOrderStatus !== 'cancelled') {
+        if (!confirm('Are you sure you want to cancel this order? This will restock items if applicable.')) {
+            statusSelect.value = currentOrderStatus; // Revert selection
+            return;
+        }
+        try {
+            const res = await api(`/api/orders/${id}/cancel/`, { method: 'POST' });
+            if (!res.ok) {
+                const d = await res.json();
+                alert('Failed to cancel order: ' + JSON.stringify(d));
+            } else {
+                alert('Order cancelled successfully!');
+                loadOrders(); // Reload orders to reflect changes
+            }
+        } catch (error) {
+            console.error('Error cancelling order:', error);
+            alert('Error cancelling order.');
+        }
+    } else if (newStatus !== currentOrderStatus) {
+        try {
+            const res = await api(`/api/orders/${id}/`, {
+                method: 'PATCH',
+                body: JSON.stringify({ status: newStatus })
+            });
+            if (!res.ok) {
+                const d = await res.json();
+                alert('Failed to update status: ' + JSON.stringify(d));
+            } else {
+                alert('Order status updated successfully!');
+                loadOrders(); // Reload orders to reflect changes
+            }
+        } catch (error) {
+            console.error('Error updating order status:', error);
+            alert('Error updating order status.');
+        }
+    } else {
+        alert('Order status is already ' + newStatus);
+    }
+  }
+
+  async function deleteOrder(id) {
+    if (!confirm('Are you sure you want to delete order #' + id + '?')) return;
+    
+    const res = await api(`/api/orders/${id}/`, { method: 'DELETE' });
+    if (!res.ok) {
+      alert('Failed to delete order');
+    } else {
+      loadOrders();
+    }
+  }
+
+  loadOrders();
+</script>
+
+<style>
+  .status-date {
+    color: var(--text-secondary);
+    font-size: 12px;
+    font-weight: 500;
+    font-style: italic;
+  }
+</style>
+{% endblock %}
+
+

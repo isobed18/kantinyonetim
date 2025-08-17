@@ -1,0 +1,160 @@
+{% extends 'webui/base.html' %}
+{% block content %}
+<script>ensureAuth();</script>
+<h2>Stok Yönetimi</h2>
+<div class="row">
+  <div class="card" style="width:100%">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px">
+      <button onclick="loadStock()" class="btn-primary">Yenile</button>
+      <div class="stock-summary">
+        <span class="muted">Toplam Ürün: <span id="totalItems">0</span></span>
+        <span class="muted" style="margin-left:16px">Toplam Miktar: <span id="totalQuantity">0</span></span>
+      </div>
+    </div>
+    <div id="stockTable"></div>
+  </div>
+</div>
+
+<div class="row" style="margin-top:24px">
+  <div class="card" style="width:100%">
+    <h3>Stok Ürünü Ekle</h3>
+    <div style="display:flex; gap:12px; align-items:end; flex-wrap:wrap">
+      <div>
+        <label for="newMenuItemId" class="form-label">Menü Ürün ID</label>
+        <input id="newMenuItemId" placeholder="Menü ürün ID'si girin" style="width:200px"/>
+      </div>
+      <div>
+        <label for="newQty" class="form-label">Miktar</label>
+        <input id="newQty" placeholder="Miktar girin" style="width:120px"/>
+      </div>
+      <button onclick="addStock()" class="btn-primary">Stoka Ekle</button>
+    </div>
+    <div id="addStockStatus" class="muted" style="margin-top:8px"></div>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+  async function loadStock() {
+    const res = await api('/api/stock/');
+    const items = await res.json();
+    
+    if (items.length === 0) {
+      document.getElementById('stockTable').innerHTML = '<div class="muted">Stock ürünü bulunamadı</div>';
+      document.getElementById('totalItems').innerText = '0';
+      document.getElementById('totalQuantity').innerText = '0';
+      return;
+    }
+    
+    const rows = items.map(s => `
+      <tr class="stock-row">
+        <td>${s.id}</td>
+        <td>
+          <div class="menu-item-info">
+            <strong>${s.menu_item_name || 'Bilinmeyen Ürün'}</strong>
+            <div class="muted">ID: ${s.menu_item}</div>
+          </div>
+        </td>
+        <td>
+          <div class="quantity-control">
+            <input data-id="${s.id}" value="${s.quantity}" style="width:80px" class="quantity-input"/>
+            <div class="quantity-actions">
+              <button onclick="adjustQuantity(${s.id}, 1)" class="btn-small">+</button>
+              <button onclick="adjustQuantity(${s.id}, -1)" class="btn-small">-</button>
+            </div>
+          </div>
+        </td>
+        <td>
+          <button onclick="saveQty(${s.id})" class="btn-secondary">Kaydet</button>
+        </td>
+      </tr>
+    `).join('');
+    
+    document.getElementById('stockTable').innerHTML = `
+      <table class="stock-table">
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Menu Ürünü</th>
+            <th>Miktar</th>
+            <th>Eylem</th>
+          </tr>
+        </thead>
+        <tbody>${rows}</tbody>
+      </table>
+    `;
+    
+    // Update summary
+    const totalItems = items.length;
+    const totalQuantity = items.reduce((sum, item) => sum + (item.quantity || 0), 0);
+    document.getElementById('totalItems').innerText = totalItems;
+    document.getElementById('totalQuantity').innerText = totalQuantity;
+    
+    loadCurrentUser();
+  }
+
+  function adjustQuantity(id, delta) {
+    const input = document.querySelector(`input[data-id="${id}"]`);
+    const currentQty = parseInt(input.value, 10) || 0;
+    const newQty = Math.max(0, currentQty + delta);
+    input.value = newQty;
+  }
+
+  async function saveQty(id) {
+    const input = document.querySelector(`input[data-id="${id}"]`);
+    const quantity = parseInt(input.value, 10);
+    
+    if (isNaN(quantity) || quantity < 0) {
+      alert('Lütfen geçerli bir miktar girin');
+      return;
+    }
+    
+    const res = await api(`/api/stock/${id}/`, { method: 'PUT', body: JSON.stringify({ quantity }) });
+    if (!res.ok) {
+      alert('Miktar kaydedilerken bir hata oluştu');
+    } else {
+      // Show success feedback
+      input.style.borderColor = '#28a745';
+      setTimeout(() => {
+        input.style.borderColor = '';
+      }, 1000);
+      loadStock(); // Refresh to update totals
+    }
+  }
+
+  async function addStock() {
+    const menu_item = parseInt(document.getElementById('newMenuItemId').value, 10);
+    const quantity = parseInt(document.getElementById('newQty').value, 10);
+    
+    if (isNaN(menu_item) || isNaN(quantity) || quantity <= 0) {
+      document.getElementById('addStockStatus').innerHTML = '<span class="err">Lütfen geçerli bir değer girin</span>';
+      return;
+    }
+    
+    document.getElementById('addStockStatus').innerHTML = '<span class="muted">Stoğa ekleniyor...</span>';
+    
+    const res = await api('/api/stock/', { method: 'POST', body: JSON.stringify({ menu_item, quantity }) });
+    
+    if (!res.ok) { 
+      const d = await res.json(); 
+      document.getElementById('addStockStatus').innerHTML = `<span class="err">Hata: ${JSON.stringify(d)}</span>`; 
+      return; 
+    }
+    
+    document.getElementById('addStockStatus').innerHTML = '<span class="ok">Stoka başarıyla eklendi!</span>';
+    document.getElementById('newMenuItemId').value = '';
+    document.getElementById('newQty').value = '';
+    
+    // Clear success message after 3 seconds
+    setTimeout(() => {
+      document.getElementById('addStockStatus').innerHTML = '';
+    }, 3000);
+    
+    loadStock();
+  }
+
+  loadStock();
+</script>
+{% endblock %}
+
+

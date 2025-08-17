@@ -1,0 +1,296 @@
+{% extends 'webui/base.html' %}
+{% block content %}
+<script>ensureAuth();</script>
+<h2>Hoş Geldiniz</h2>
+<div class="row">
+  <div class="card">
+    <h3>Son Siparişler</h3>
+    <div class="muted">Sadece aktif siparişler</div>
+    <div id="orders"></div>
+    <div style="display:flex; gap:8px; align-items:center; margin-top:12px">
+      <button onclick="prevPage()" class="btn-secondary">Önceki</button>
+      <span id="pageInfo" class="page-info"></span>
+      <button onclick="nextPage()" class="btn-secondary">Sonraki</button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+  let page = 0;
+  let totalOrders = 0;
+  const ordersPerPage = 5;
+
+  async function loadLatestOrders() {
+    const res = await api('/api/orders/');
+    const ordersAll = await res.json();
+    
+    // Filter only active orders (not completed/cancelled)
+    const activeOrders = ordersAll.filter(o => !['completed', 'cancelled'].includes(o.status));
+    totalOrders = activeOrders.length;
+    
+    const start = page * ordersPerPage;
+    const end = start + ordersPerPage;
+    const orders = activeOrders.slice(start, end);
+    
+    if (orders.length === 0) {
+      document.getElementById('orders').innerHTML = '<div class="muted">Aktif sipariş yok</div>';
+      document.getElementById('pageInfo').innerText = '';
+      return;
+    }
+    
+    const html = orders.map(o => {
+      const orderDate = new Date(o.created_at).toLocaleDateString('tr-TR', {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+      
+      return `
+        <div class="order-card">
+          <div class="order-header">
+            <strong>Sipariş #${o.id}</strong> 
+            <span class="chip status-${o.status}">${o.status}</span> 
+            <span class="muted">Toplam: ₺${o.total}</span>
+            <span class="order-date">${orderDate}</span>
+          </div>
+          <div class="order-items">
+            ${(o.order_items || []).map(i => `
+              <div class="order-item">
+                <span class="item-name">${i.menu_item_name}</span>
+                <span class="item-qty">x${i.quantity}</span>
+                <span class="item-price">₺${i.price_at_order_time}</span>
+              </div>
+            `).join('')}
+          </div>
+          <div class="order-actions">
+            <button onclick="window.location.href='/orders/${o.id}'" class="btn-primary">Detaylar</button>
+            ${(o.status==='pending'||o.status==='preparing') ? `<button onclick="cancelOrder(${o.id})" class="btn-danger">İptal</button>` : ''}
+          </div>
+        </div>
+      `;
+    }).join('');
+    
+    document.getElementById('orders').innerHTML = html;
+    
+    // Update pagination info
+    const startNum = start + 1;
+    const endNum = Math.min(end, totalOrders);
+    document.getElementById('pageInfo').innerText = `${startNum}-${endNum} / ${totalOrders}`;
+  }
+
+  function nextPage() { 
+    if ((page + 1) * ordersPerPage < totalOrders) {
+      page += 1; 
+      loadLatestOrders(); 
+    }
+  }
+  
+  function prevPage() { 
+    if (page > 0) {
+      page -= 1; 
+      loadLatestOrders(); 
+    }
+  }
+
+  async function cancelOrder(id) {
+    if (!confirm('Bu siparişi iptal etmek istediğinizden emin misiniz?')) return;
+    
+    const res = await api(`/api/orders/${id}/cancel/`, { method: 'POST' });
+    if (!res.ok) {
+      const d = await res.json();
+      alert('Sipariş iptal edilemedi: ' + JSON.stringify(d));
+    } else {
+      loadLatestOrders();
+    }
+  }
+
+  loadLatestOrders();
+</script>
+{% endblock %}
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Kantin Yönetim</title>
+    <style>
+      body { font-family: Arial, sans-serif; margin: 24px; }
+      .row { display: flex; gap: 16px; flex-wrap: wrap; }
+      .card { border: 1px solid #ddd; border-radius: 8px; padding: 16px; width: 360px; }
+      input, select, button { padding: 8px; margin: 4px 0; width: 100%; }
+      table { width: 100%; border-collapse: collapse; margin-top: 8px; }
+      th, td { border: 1px solid #eee; padding: 8px; text-align: left; }
+      .chip { display: inline-block; padding: 2px 8px; border-radius: 12px; background: #f2f2f2; margin-left: 8px; }
+      .muted { color: #777; font-size: 12px; }
+      .ok { color: #0a0; }
+      .err { color: #a00; }
+      .warn { color: #b80; }
+      pre { white-space: pre-wrap; word-wrap: break-word; }
+    </style>
+  </head>
+  <body>
+    <h1>Kantin Yönetim</h1>
+    <div class="row">
+      
+
+      <div class="card">
+        <h3>Menu</h3>
+        <button onclick="loadMenu()">Load Menu</button>
+        <div id="menu"></div>
+      </div>
+
+      <div class="card">
+        <h3>Create Order</h3>
+        <button onclick="createOrder()">Create</button>
+        <div id="orderCreateStatus"></div>
+        <div class="muted">Current Order ID: <span id="currentOrderId" class="chip"></span></div>
+      </div>
+    </div>
+
+    <div class="row">
+      <div class="card">
+        <h3>Add Order Item</h3>
+        <input id="orderId" placeholder="Order ID (defaults to current)" />
+        <input id="menuItemId" placeholder="Menu Item ID" />
+        <input id="quantity" placeholder="Quantity" />
+        <input id="customPrice" placeholder="Custom price (staff/admin)" />
+        <button onclick="addOrderItem()">Add</button>
+        <div id="addItemStatus"></div>
+      </div>
+
+      <div class="card">
+        <h3>My Orders</h3>
+        <button onclick="loadMyOrders()">Refresh</button>
+        <div id="orders"></div>
+      </div>
+
+      <div class="card">
+        <h3>Cancel Order / Item</h3>
+        <input id="cancelOrderId" placeholder="Order ID" />
+        <button onclick="cancelOrder()">Cancel Order</button>
+        <input id="cancelOrderItemId" placeholder="Order Item ID" />
+        <input id="cancelQty" placeholder="Quantity (optional)" />
+        <button onclick="cancelOrderItem()">Cancel Item</button>
+        <div id="cancelStatus"></div>
+      </div>
+    </div>
+
+    <script>
+      let accessToken = localStorage.getItem('access') || '';
+      function api(path, opts={}) {
+        const headers = opts.headers || {};
+        if (accessToken) headers['Authorization'] = `Bearer ${accessToken}`;
+        headers['Content-Type'] = 'application/json';
+        return fetch(path, { ...opts, headers });
+      }
+
+      async function login() {
+        const username = document.getElementById('username').value;
+        const password = document.getElementById('password').value;
+        const res = await fetch('/api/token/', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username, password })
+        });
+        const data = await res.json();
+        if (res.ok) {
+          accessToken = data.access;
+          localStorage.setItem('access', accessToken);
+          document.getElementById('token').innerText = accessToken.slice(0, 12) + '...';
+          document.getElementById('loginStatus').innerHTML = '<span class="ok">Logged in</span>';
+        } else {
+          document.getElementById('loginStatus').innerHTML = `<span class=\"err\">${data.detail || 'Login failed'}</span>`;
+        }
+      }
+
+      if (accessToken) {
+        document.getElementById('token').innerText = accessToken.slice(0, 12) + '...';
+        document.getElementById('loginStatus').innerHTML = '<span class="ok">Token loaded</span>';
+      }
+
+      async function loadMenu() {
+        const res = await fetch('/api/menu-items/');
+        const items = await res.json();
+        const html = [`<table><thead><tr><th>ID</th><th>Name</th><th>Price</th><th>Avail</th></tr></thead><tbody>`]
+          .concat(items.map(i => `<tr><td>${i.id}</td><td>${i.name}</td><td>${i.price}</td><td>${i.is_available}</td></tr>`))
+          .concat(['</tbody></table>']).join('');
+        document.getElementById('menu').innerHTML = html;
+      }
+
+      async function createOrder() {
+        const res = await api('/api/orders/', { method: 'POST', body: JSON.stringify({}) });
+        const data = await res.json();
+        if (res.ok) {
+          document.getElementById('orderCreateStatus').innerHTML = '<span class="ok">Order created</span>';
+          document.getElementById('currentOrderId').innerText = data.id;
+        } else {
+          document.getElementById('orderCreateStatus').innerHTML = `<span class="err">${JSON.stringify(data)}</span>`;
+        }
+      }
+
+      async function addOrderItem() {
+        const orderInput = document.getElementById('orderId').value;
+        const order = orderInput || document.getElementById('currentOrderId').innerText;
+        const menu_item = document.getElementById('menuItemId').value;
+        const quantity = parseInt(document.getElementById('quantity').value || '1', 10);
+        const customPrice = document.getElementById('customPrice').value;
+        const payload = { order, menu_item, quantity };
+        if (customPrice) payload.price_at_order_time = customPrice;
+        const res = await api('/api/order-items/', { method: 'POST', body: JSON.stringify(payload) });
+        const data = await res.json();
+        if (res.ok) {
+            document.getElementById('addItemStatus').innerHTML = '<span class="ok">Added</span>';
+            // Optionally, refresh the order list or current order details after successful add
+            loadMyOrders(); // Assuming loadMyOrders exists on this page to refresh the list
+        } else {
+            let errorMessage = 'Failed to add item.';
+            if (data && typeof data === 'object') {
+                errorMessage = Object.entries(data).map(([key, value]) => {
+                    return `${key}: ${Array.isArray(value) ? value.join(', ') : value}`;
+                }).join('; ');
+            } else if (typeof data === 'string') {
+                errorMessage = data;
+            }
+            document.getElementById('addItemStatus').innerHTML = `<span class="err">Error: ${errorMessage}</span>`;
+        }
+      }
+
+      async function loadMyOrders() {
+        const res = await api('/api/orders/');
+        const orders = await res.json();
+        const html = orders.map(o => `
+          <div>
+            <div><strong>Order #${o.id}</strong> <span class="chip">${o.status}</span> <span class="muted">total: ${o.total}</span></div>
+            <table>
+              <thead><tr><th>ID</th><th>Item</th><th>Qty</th><th>Price</th><th>Line</th></tr></thead>
+              <tbody>
+                ${(o.order_items || []).map(i => `<tr><td>${i.id}</td><td>${i.menu_item_name}</td><td>${i.quantity}</td><td>${i.price_at_order_time}</td><td>${i.line_total}</td></tr>`).join('')}
+              </tbody>
+            </table>
+          </div>
+        `).join('');
+        document.getElementById('orders').innerHTML = html;
+      }
+
+      async function cancelOrder() {
+        const id = document.getElementById('cancelOrderId').value;
+        const res = await api(`/api/orders/${id}/cancel/`, { method: 'POST' });
+        const data = await res.json();
+        document.getElementById('cancelStatus').innerHTML = res.ok ? `<span class="ok">${data.detail}</span>` : `<span class="err">${JSON.stringify(data)}</span>`;
+      }
+      async function cancelOrderItem() {
+        const id = document.getElementById('cancelOrderItemId').value;
+        const qty = document.getElementById('cancelQty').value;
+        const body = qty ? JSON.stringify({ quantity: parseInt(qty, 10) }) : JSON.stringify({});
+        const res = await api(`/api/order-items/${id}/cancel/`, { method: 'POST', body });
+        const data = await res.json();
+        document.getElementById('cancelStatus').innerHTML = res.ok ? `<span class=\"ok\">${data.detail}</span>` : `<span class=\"err\">${JSON.stringify(data)}</span>`;
+      }
+    </script>
+  </body>
+  </html>
+
+

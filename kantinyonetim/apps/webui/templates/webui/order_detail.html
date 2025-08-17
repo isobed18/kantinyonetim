@@ -1,0 +1,492 @@
+{% extends 'webui/base.html' %}
+{% block content %}
+<script>ensureAuth();</script>
+<h2>Sipariş Detayları</h2>
+<div class="row">
+  <div class="card" style="width:100%">
+    <div id="meta" class="order-meta"></div>
+    <div id="items" class="order-items-detail"></div>
+    
+    <div class="order-actions-section">
+      <h4>Sipariş Eylemleri</h4>
+      
+      <!-- Yönetici/Personel fiyat düzenleme bölümü -->
+      <div id="priceEditingSection" style="display:none; margin-bottom:20px; padding:16px; background:#f0f9ff; border-radius:6px; border:1px solid #0ea5e9;">
+        <h5 style="margin:0 0 12px 0; color:#0c4a6e">Fiyat Yönetimi</h5>
+        <div style="display:flex; gap:12px; align-items:end; flex-wrap:wrap">
+          <div>
+            <label for="editItemSelect" class="form-label">Öğe Seç</label>
+            <select id="editItemSelect" style="width:200px">
+              <option value="">Bir öğe seçin...</option>
+            </select>
+          </div>
+          <div>
+            <label for="newPrice" class="form-label">Yeni Fiyat</label>
+            <input id="newPrice" placeholder="Yeni fiyatı girin" type="number" step="0.01" style="width:150px"/>
+          </div>
+          <button onclick="updateItemPrice()" class="btn-primary">Fiyatı Güncelle</button>
+        </div>
+        <div id="priceUpdateStatus" class="muted" style="margin-top:8px"></div>
+      </div>
+
+      <div class="status-selection-section" style="margin-bottom:20px;">
+        <h5 style="margin:0 0 12px 0">Sipariş Durumunu Değiştir</h5>
+        <div style="display:flex; gap:12px; align-items:end; flex-wrap:wrap" class="save-status-container">
+          <span id="currentStatusText" class="chip" style="display:none;"></span>
+          <select id="orderStatus" style="width:180px" ${orderData.status==='cancelled' ? 'disabled' : ''}>
+            <option value="pending">Beklemede</option>
+            <option value="preparing">Hazırlanıyor</option>
+            <option value="ready">Hazır</option>
+            <option value="completed">Tamamlandı</option>
+            <option value="cancelled">İptal Edildi</option>
+          </select>
+          <button class="btn-primary" onclick="saveOrderStatus()" ${orderData.status==='cancelled' ? 'disabled' : ''}>Durumu Kaydet</button>
+        </div>
+      </div>
+
+      <!-- Ürünleri iptal etme bölümü -->
+      <div style="margin-bottom:20px">
+        <h5 style="margin:0 0 12px 0">Ürünleri İptal Et</h5>
+        <div style="display:flex; gap:12px; align-items:end; flex-wrap:wrap">
+          <div>
+            <label for="cancelQty" class="form-label">İptal Edilecek Miktar</label>
+            <input id="cancelQty" placeholder="Miktar girin (tümü için boş bırakın)" style="width:250px"/>
+          </div>
+          <button onclick="cancelItem()" class="btn-danger">Seçili Ürünü İptal Et</button>
+        </div>
+        <div class="muted" style="margin-top:8px">
+          Yukarıdan bir ürün seçin ve iptal edilecek miktarı belirtin. Tüm ürünü iptal etmek için miktarı boş bırakın.
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+  let currentUserRole = 'customer';
+  let currentOrder = null;
+  let currentOrderStatus = ''; // To store the currently selected status in the dropdown
+
+  async function loadCurrentUserRole() {
+    try {
+      const res = await api('/api/users/me/');
+      if (res.ok) {
+        const me = await res.json();
+        currentUserRole = me.role || 'customer';
+        if (currentUserRole === 'staff' || currentUserRole === 'admin') {
+          document.getElementById('priceEditingSection').style.display = 'block';
+        }
+      }
+    } catch (e) {
+      console.error('Failed to load user role:', e);
+    }
+  }
+
+  function pathId() {
+    const m = window.location.pathname.match(/\/orders\/(\d+)\/?$/);
+    return m ? m[1] : '';
+  }
+
+  async function loadOrder() {
+    await loadCurrentUserRole(); // Ensure role is loaded before rendering
+
+    const id = pathId();
+    if (!id) {
+      alert('Invalid order ID');
+      return;
+    }
+
+    try {
+      const res = await api(`/api/orders/${id}/`);
+      if (!res.ok) {
+        alert('Failed to load order');
+        return;
+      }
+      
+      const o = await res.json();
+      currentOrder = o;
+      
+      // Format order date
+      const orderDate = new Date(o.created_at).toLocaleDateString('tr-TR', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+      
+      // Display order metadata
+      document.getElementById('meta').innerHTML = `
+        <div class="order-meta-header">
+          <div class="order-basic-info">
+            <h3>Sipariş #${o.id}</h3>
+            <span class="chip status-${o.status}">${o.status}</span>
+            <span class="order-total">Toplam: ₺${o.total}</span>
+          </div>
+          <div class="order-dates">
+            <div class="date-item">
+              <span class="date-label">Oluşturuldu:</span>
+              <span class="date-value">${orderDate}</span>
+            </div>
+            ${o.updated_at !== o.created_at ? `
+              <div class="date-item">
+                <span class="date-label">Son Güncellendi:</span>
+                <span class="date-value">${new Date(o.updated_at).toLocaleDateString('tr-TR', {
+                  year: 'numeric',
+                  month: 'long',
+                  day: 'numeric',
+                  hour: '2-digit',
+                  minute: '2-digit'
+                })}</span>
+              </div>
+            ` : ''}
+          </div>
+        </div>
+      `;
+      
+      // Set dropdown value and store it
+      const statusSelect = document.getElementById('orderStatus');
+      statusSelect.value = o.status;
+      currentOrderStatus = o.status; // Store the initial status
+
+      const currentStatusText = document.getElementById('currentStatusText');
+      const saveStatusButton = document.querySelector('.save-status-container button');
+
+      // Hide/show dropdown based on role
+      if (currentUserRole === 'staff' || currentUserRole === 'admin') {
+        statusSelect.style.display = '';
+        saveStatusButton.style.display = '';
+        currentStatusText.style.display = 'none';
+      } else {
+        statusSelect.style.display = 'none';
+        saveStatusButton.style.display = 'none';
+        currentStatusText.style.display = '';
+        currentStatusText.className = `chip status-${o.status}`;
+        currentStatusText.innerText = o.status;
+      }
+
+      // Display order items
+      if (o.order_items && o.order_items.length > 0) {
+        const rows = o.order_items.map(i => `
+          <tr class="order-item-row">
+            <td style="width:40px">
+              <input type="radio" name="sel" value="${i.id}" id="item_${i.id}">
+              <label for="item_${i.id}" class="radio-label"></label>
+            </td>
+            <td style="width:60px">${i.id}</td>
+            <td><strong>${i.menu_item_name}</strong></td>
+            <td style="width:80px; text-align:center">${i.quantity}</td>
+            <td style="width:100px; text-align:right">₺${i.price_at_order_time}</td>
+            <td style="width:120px; text-align:right">₺${i.line_total}</td>
+          </tr>
+        `).join('');
+        
+        document.getElementById('items').innerHTML = `
+          <h4>Sipariş Öğeleri</h4>
+          <table class="order-items-table">
+            <thead>
+              <tr>
+                <th style="width:40px">Seç</th>
+                <th style="width:60px">ID</th>
+                <th>Öğe Adı</th>
+                <th style="width:80px; text-align:center">Miktar</th>
+                <th style="width:100px; text-align:right">Fiyat</th>
+                <th style="width:120px; text-align:right">Toplam</th>
+              </tr>
+            </thead>
+            <tbody>${rows}</tbody>
+          </table>
+        `;
+        
+        // Populate item select for price editing
+        if (currentUserRole === 'staff' || currentUserRole === 'admin') {
+          const itemSelect = document.getElementById('editItemSelect');
+          itemSelect.innerHTML = '<option value="">Bir öğe seçin...</option>' + 
+            o.order_items.map(i => `<option value="${i.id}" data-price="${i.price_at_order_time}">${i.menu_item_name} (₺${i.price_at_order_time})</option>`).join('');
+        }
+      } else {
+        document.getElementById('items').innerHTML = '<div class="muted">Bu siparişte öğe yok</div>';
+      }
+      
+    } catch (error) {
+      console.error('Error loading order:', error);
+      alert('Failed to load order details');
+    }
+  }
+
+  async function saveOrderStatus() {
+    const id = pathId();
+    const newStatus = document.getElementById('orderStatus').value;
+    
+    if (newStatus === 'cancelled' && currentOrderStatus !== 'cancelled') {
+        // If the status is being changed to cancelled, use the specific cancel endpoint
+        if (!confirm('Bu siparişi iptal etmek istediğinize emin misiniz? Bu, uygun olduğunda stokları yeniden dolduracaktır.')) {
+            document.getElementById('orderStatus').value = currentOrderStatus; // Revert selection
+            return;
+        }
+        try {
+            const res = await api(`/api/orders/${id}/cancel/`, { method: 'POST' });
+            if (!res.ok) {
+                const d = await res.json();
+                showNotification('Sipariş iptal edilemedi: ' + JSON.stringify(d), 'error');
+            } else {
+                showNotification('Sipariş başarıyla iptal edildi!', 'success');
+                loadOrder(); // Reload order to reflect changes
+            }
+        } catch (error) {
+            console.error('Error cancelling order:', error);
+            showNotification('Sipariş iptal edilemedi.', 'error');
+        }
+    } else if (newStatus !== currentOrderStatus) {
+        // For other status changes, use PATCH
+        try {
+            const res = await api(`/api/orders/${id}/`, {
+                method: 'PATCH',
+                body: JSON.stringify({ status: newStatus })
+            });
+            if (!res.ok) {
+                const d = await res.json();
+                showNotification('Durum güncellenemedi: ' + JSON.stringify(d), 'error');
+            } else {
+                showNotification('Sipariş durumu başarıyla güncellendi!', 'success');
+                loadOrder(); // Reload order to reflect changes
+            }
+        } catch (error) {
+            console.error('Error updating order status:', error);
+            showNotification('Sipariş durumu güncellenemedi.', 'error');
+        }
+    } else {
+        showNotification('Sipariş durumu zaten ' + newStatus, 'info');
+    }
+  }
+
+  async function updateItemPrice() {
+    const itemSelect = document.getElementById('editItemSelect');
+    const newPriceInput = document.getElementById('newPrice');
+    
+    if (!itemSelect.value) {
+      alert('Lütfen fiyatı güncellemek için bir öğe seçin');
+      return;
+    }
+    
+    const newPrice = parseFloat(newPriceInput.value);
+    if (isNaN(newPrice) || newPrice < 0) {
+      alert('Lütfen geçerli bir fiyat girin');
+      return;
+    }
+    
+    const itemId = itemSelect.value;
+    const selectedOption = itemSelect.options[itemSelect.selectedIndex];
+    const currentPrice = parseFloat(selectedOption.dataset.price);
+    
+    if (newPrice === currentPrice) {
+      alert('Yeni fiyat mevcut fiyata eşit');
+      return;
+    }
+    
+    if (!confirm(`₺${currentPrice} fiyatını ₺${newPrice} olarak değiştirmek istediğinize emin misiniz?`)) {
+      return;
+    }
+    
+    document.getElementById('priceUpdateStatus').innerHTML = '<span class="muted">Fiyat güncelleniyor...</span>';
+    
+    try {
+      const res = await api(`/api/order-items/${itemId}/`, {
+        method: 'PUT',
+        body: JSON.stringify({
+          price_at_order_time: newPrice
+        })
+      });
+      
+      if (res.ok) {
+        document.getElementById('priceUpdateStatus').innerHTML = '<span class="ok">Fiyat başarıyla güncellendi!</span>';
+        newPriceInput.value = '';
+        itemSelect.value = '';
+        
+        // Reload order to show updated prices
+        setTimeout(() => {
+          loadOrder();
+        }, 1000);
+      } else {
+        const errorData = await res.json();
+        document.getElementById('priceUpdateStatus').innerHTML = `<span class="err">Başarısız: ${JSON.stringify(errorData)}</span>`;
+      }
+    } catch (error) {
+      console.error('Error updating price:', error);
+      document.getElementById('priceUpdateStatus').innerHTML = '<span class="err">Fiyat güncellenemedi</span>';
+    }
+  }
+
+  async function cancelItem() {
+    const selectedRadio = document.querySelector('input[name="sel"]:checked');
+    if (!selectedRadio) { 
+      alert('Lütfen iptal etmek için bir öğe seçin'); 
+      return; 
+    }
+    
+    const itemId = selectedRadio.value;
+    const qtyInput = document.getElementById('cancelQty');
+    const qty = parseInt(qtyInput.value || '0', 10);
+    
+    if (qty < 0) {
+      alert('Miktar negatif olamaz');
+      return;
+    }
+    
+    const body = qty > 0 ? JSON.stringify({ quantity: qty }) : JSON.stringify({});
+    
+    try {
+      const res = await api(`/api/order-items/${itemId}/cancel/`, { method: 'POST', body });
+      if (!res.ok) { 
+        const errorData = await res.json();
+        alert('Ürün iptal edilemedi: ' + JSON.stringify(errorData)); 
+      } else {
+        alert('Ürün başarıyla iptal edildi');
+        qtyInput.value = '';
+        selectedRadio.checked = false;
+        loadOrder(); // Refresh the order
+      }
+    } catch (error) {
+      console.error('Error cancelling item:', error);
+      alert('Ürün iptal edilemedi');
+    }
+  }
+
+  // Initial load
+  loadOrder();
+</script>
+
+<style>
+  .order-meta-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 24px;
+    padding-bottom: 16px;
+    border-bottom: 2px solid var(--border-color);
+  }
+
+  .order-basic-info {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    flex-wrap: wrap;
+  }
+
+  .order-basic-info h3 {
+    margin: 0;
+    color: var(--primary-color);
+  }
+
+  .order-total {
+    font-size: 1.25rem;
+    font-weight: 600;
+    color: var(--success-color);
+  }
+
+  .order-dates {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    text-align: right;
+  }
+
+  .date-item {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .date-label {
+    font-size: 12px;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+
+  .date-value {
+    font-weight: 500;
+    color: var(--text-secondary);
+  }
+
+  .order-items-detail {
+    margin-bottom: 32px;
+  }
+
+  .order-items-detail h4 {
+    margin-bottom: 16px;
+    color: var(--text-primary);
+    border-bottom: 1px solid var(--border-color);
+    padding-bottom: 8px;
+  }
+
+  .order-item-row:hover {
+    background-color: var(--light-bg);
+  }
+
+  .radio-label {
+    cursor: pointer;
+    display: inline-block;
+    width: 16px;
+    height: 16px;
+    border: 2px solid var(--border-color);
+    border-radius: 50%;
+    position: relative;
+    margin: 0;
+  }
+
+  input[type="radio"]:checked + .radio-label::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 8px;
+    height: 8px;
+    background: var(--primary-color);
+    border-radius: 50%;
+  }
+
+  input[type="radio"] {
+    display: none;
+  }
+
+  .order-actions-section {
+    background: var(--light-bg);
+    padding: 20px;
+    border-radius: var(--radius);
+    border: 1px solid var(--border-color);
+  }
+
+  .order-actions-section h4 {
+    margin-top: 0;
+    color: var(--text-primary);
+  }
+
+  .order-actions-section h5 {
+    margin: 0 0 12px 0;
+    color: var(--text-primary);
+    font-size: 1rem;
+  }
+
+  @media (max-width: 768px) {
+    .order-meta-header {
+      flex-direction: column;
+      gap: 16px;
+    }
+    
+    .order-dates {
+      text-align: left;
+    }
+    
+    .order-basic-info {
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 12px;
+    }
+  }
+</style>
+{% endblock %}
+
+

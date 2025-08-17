@@ -1,0 +1,946 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Kantin Yönetim</title>
+    <style>
+      :root {
+        --primary-color: #2563eb;
+        --primary-hover: #1d4ed8;
+        --secondary-color: #64748b;
+        --secondary-hover: #475569;
+        --success-color: #16a34a;
+        --warning-color: #ca8a04;
+        --danger-color: #dc2626;
+        --info-color: #0891b2;
+        --light-bg: #f8fafc;
+        --border-color: #e2e8f0;
+        --text-primary: #1e293b;
+        --text-secondary: #64748b;
+        --text-muted: #94a3b8;
+        --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+        --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+        --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+        --radius: 8px;
+        --radius-sm: 6px;
+        --radius-lg: 12px;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body { 
+        font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; 
+        margin: 0; 
+        background-color: var(--light-bg);
+        color: var(--text-primary);
+        line-height: 1.6;
+      }
+
+      header { 
+        display: flex; 
+        align-items: center; 
+        justify-content: space-between; 
+        padding: 16px 24px; 
+        background: white;
+        border-bottom: 1px solid var(--border-color);
+        box-shadow: var(--shadow-sm);
+        position: sticky;
+        top: 0;
+        z-index: 100;
+      }
+
+      header .brand { 
+        font-size: 1.5rem; 
+        font-weight: 700; 
+        color: var(--primary-color);
+      }
+
+      header .nav { 
+        display: flex; 
+        gap: 8px; 
+      }
+
+      header .nav a { 
+        padding: 8px 16px;
+        text-decoration: none; 
+        color: var(--text-secondary);
+        border-radius: var(--radius-sm);
+        transition: all 0.2s ease;
+        font-weight: 500;
+      }
+
+      header .nav a:hover { 
+        color: var(--primary-color);
+        background-color: var(--light-bg);
+      }
+
+      main { 
+        padding: 32px; 
+        max-width: 1400px;
+        margin: 0 auto;
+      }
+
+      h1, h2, h3, h4, h5, h6 {
+        margin: 0 0 16px 0;
+        color: var(--text-primary);
+        font-weight: 600;
+      }
+
+      h2 {
+        font-size: 1.875rem;
+        margin-bottom: 24px;
+        color: var(--text-primary);
+      }
+
+      h3 {
+        font-size: 1.25rem;
+        margin-bottom: 16px;
+      }
+
+      .row { 
+        display: flex; 
+        gap: 24px; 
+        flex-wrap: wrap; 
+        margin-bottom: 24px;
+      }
+
+      .card { 
+        background: white;
+        border: 1px solid var(--border-color); 
+        border-radius: var(--radius); 
+        padding: 24px; 
+        box-shadow: var(--shadow-sm);
+        transition: box-shadow 0.2s ease;
+      }
+
+      .card:hover {
+        box-shadow: var(--shadow-md);
+      }
+
+      .card h3 {
+        margin-top: 0;
+        color: var(--text-primary);
+        border-bottom: 2px solid var(--border-color);
+        padding-bottom: 12px;
+      }
+
+      /* Form Elemanları */
+      input, select, textarea { 
+        padding: 12px 16px; 
+        margin: 4px 0; 
+        width: 100%; 
+        border: 1px solid var(--border-color);
+        border-radius: var(--radius-sm);
+        font-size: 14px;
+        transition: border-color 0.2s ease, box-shadow 0.2s ease;
+      }
+
+      input:focus, select:focus, textarea:focus {
+        outline: none;
+        border-color: var(--primary-color);
+        box-shadow: 0 0 0 3px rgb(37 99 235 / 0.1);
+      }
+
+      .form-label {
+        display: block;
+        margin-bottom: 6px;
+        font-weight: 500;
+        color: var(--text-secondary);
+        font-size: 14px;
+      }
+
+      /* Butonlar */
+      button { 
+        padding: 12px 20px; 
+        margin: 4px 0; 
+        border: none;
+        border-radius: var(--radius-sm);
+        font-size: 14px;
+        font-weight: 500;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+      }
+
+      button:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+      }
+
+      .btn-primary { 
+        background: var(--primary-color); 
+        color: white;
+      }
+
+      .btn-primary:hover:not(:disabled) { 
+        background: var(--primary-hover);
+        transform: translateY(-1px);
+        box-shadow: var(--shadow-md);
+      }
+
+      .btn-secondary { 
+        background: var(--secondary-color); 
+        color: white;
+      }
+
+      .btn-secondary:hover:not(:disabled) { 
+        background: var(--secondary-hover);
+        transform: translateY(-1px);
+      }
+
+      .btn-success { 
+        background: var(--success-color); 
+        color: white;
+      }
+
+      .btn-success:hover:not(:disabled) { 
+        background: #15803d;
+        transform: translateY(-1px);
+      }
+
+      .btn-danger { 
+        background: var(--danger-color); 
+        color: white;
+      }
+
+      .btn-danger:hover:not(:disabled) { 
+        background: #b91c1c;
+        transform: translateY(-1px);
+      }
+
+      .btn-warning { 
+        background: var(--warning-color); 
+        color: white;
+      }
+
+      .btn-warning:hover:not(:disabled) { 
+        background: #a16207;
+        transform: translateY(-1px);
+      }
+
+      .btn-outline { 
+        background: transparent; 
+        color: var(--text-secondary);
+        border: 1px solid var(--border-color);
+      }
+
+      .btn-outline:hover:not(:disabled) { 
+        background: var(--light-bg);
+        border-color: var(--text-secondary);
+      }
+
+      .btn-small {
+        padding: 6px 12px;
+        font-size: 12px;
+      }
+
+      /* Tablolar */
+      table { 
+        width: 100%; 
+        border-collapse: collapse; 
+        margin-top: 16px;
+        background: white;
+        border-radius: var(--radius);
+        overflow: hidden;
+        box-shadow: var(--shadow-sm);
+      }
+
+      th, td { 
+        border: 1px solid var(--border-color); 
+        padding: 12px; 
+        text-align: left; 
+        vertical-align: top;
+      }
+
+      th { 
+        background: var(--light-bg);
+        font-weight: 600;
+        color: var(--text-secondary);
+        font-size: 14px;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+      }
+
+      tr:hover {
+        background-color: var(--light-bg);
+      }
+
+      /* Durum Çipleri */
+      .chip { 
+        display: inline-block; 
+        padding: 4px 12px; 
+        border-radius: 20px; 
+        background: var(--light-bg); 
+        margin-left: 8px;
+        font-size: 12px;
+        font-weight: 500;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+      }
+
+      .status-pending { background: #fef3c7; color: #92400e; } /* Beklemede */
+      .status-preparing { background: #dbeafe; color: #1e40af; } /* Hazırlanıyor */
+      .status-ready { background: #d1fae5; color: #065f46; } /* Hazır */
+      .status-completed { background: #dcfce7; color: #166534; } /* Tamamlandı */
+      .status-cancelled { background: #fee2e2; color: #991b1b; } /* İptal Edildi */
+      .status-available { background: #dcfce7; color: #166534; } /* Mevcut */
+      .status-unavailable { background: #fee2e2; color: #991b1b; } /* Mevcut Değil */
+
+      /* Metin Renkleri */
+      .muted { color: var(--text-muted); font-size: 14px; } /* Sessiz */
+      .ok { color: var(--success-color); font-weight: 500; } /* Tamam */
+      .err { color: var(--danger-color); font-weight: 500; } /* Hata */
+      .warn { color: var(--warning-color); font-weight: 500; } /* Uyarı */
+      .info { color: var(--info-color); font-weight: 500; } /* Bilgi */
+
+      /* Sipariş Kartları */
+      .order-card {
+        background: white;
+        border: 1px solid var(--border-color);
+        border-radius: var(--radius);
+        padding: 20px;
+        margin-bottom: 16px;
+        box-shadow: var(--shadow-sm);
+        transition: all 0.2s ease;
+      }
+
+      .order-card:hover {
+        box-shadow: var(--shadow-md);
+        transform: translateY(-2px);
+      }
+
+      .order-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 16px;
+        padding-bottom: 12px;
+        border-bottom: 1px solid var(--border-color);
+      }
+
+      .order-info {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        flex-wrap: wrap;
+      }
+
+      .order-actions {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+      }
+
+      .order-customer {
+        margin-bottom: 16px;
+        padding: 8px 12px;
+        background: var(--light-bg);
+        border-left: 4px solid var(--primary-color);
+      }
+
+      .order-items {
+        margin-bottom: 16px;
+      }
+
+      .order-items-table {
+        margin-top: 0;
+      }
+
+      .order-footer {
+        display: flex;
+        justify-content: flex-end;
+        padding-top: 16px;
+        border-top: 1px solid var(--border-color);
+      }
+
+      .order-date {
+        color: var(--text-muted);
+        font-size: 12px;
+        font-weight: 500;
+      }
+
+      /* Menü Tablosu */
+      .menu-table th:first-child,
+      .menu-table td:first-child {
+        width: 60px;
+        text-align: center;
+      }
+
+      .item-description {
+        max-width: 300px;
+        color: var(--text-secondary);
+        font-size: 14px;
+        line-height: 1.4;
+      }
+
+      /* Stok Tablosu */
+      .stock-table th:first-child,
+      .stock-table td:first-child {
+        width: 60px;
+        text-align: center;
+      }
+
+      .menu-item-info {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+      }
+
+      .quantity-control {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+
+      .quantity-input {
+        width: 80px !important;
+        text-align: center;
+      }
+
+      .quantity-actions {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+      }
+
+      /* Sayfalandırma */
+      .page-info {
+        padding: 8px 16px;
+        background: var(--light-bg);
+        border-radius: var(--radius-sm);
+        font-weight: 500;
+        color: var(--text-secondary);
+        min-width: 120px;
+        text-align: center;
+      }
+
+      /* Özet Bölümleri */
+      .stock-summary, .orders-summary {
+        display: flex;
+        gap: 16px;
+        align-items: center;
+      }
+
+      /* Durum Seçimi */
+      .status-select {
+        padding: 8px 12px;
+        border-radius: var(--radius-sm);
+        border: 1px solid var(--border-color);
+        background: white;
+        font-size: 14px;
+        min-width: 120px;
+      }
+
+      /* Duyarlı Tasarım */
+      @media (max-width: 768px) {
+        main {
+          padding: 16px;
+        }
+        
+        .row {
+          flex-direction: column;
+        }
+        
+        .card {
+          width: 100% !important;
+        }
+        
+        .order-header {
+          flex-direction: column;
+          align-items: flex-start;
+          gap: 12px;
+        }
+        
+        .order-actions {
+          width: 100%;
+          justify-content: flex-start;
+        }
+        
+        header {
+          padding: 12px 16px;
+        }
+        
+        header .nav {
+          flex-direction: column;
+          gap: 4px;
+        }
+      }
+
+      /* Animasyonlar */
+      @keyframes fadeIn {
+        from { opacity: 0; transform: translateY(10px); }
+        to { opacity: 1; transform: translateY(0); }
+      }
+
+      .order-card {
+        animation: fadeIn 0.3s ease-out;
+      }
+
+      /* Yükleme Durumları */
+      .loading {
+        opacity: 0.6;
+        pointer-events: none;
+      }
+
+      /* Başarı/Hata Geri Bildirimi */
+      .success-feedback {
+        border-color: var(--success-color) !important;
+        box-shadow: 0 0 0 3px rgb(22 163 74 / 0.1) !important;
+      }
+
+      .error-feedback {
+        border-color: var(--danger-color) !important;
+        box-shadow: 0 0 0 3px rgb(220 38 38 / 0.1) !important;
+      }
+
+      /* Bildirim Sistemi */
+      .notifications-container {
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        z-index: 10000;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        max-width: 400px;
+      }
+
+      .notification {
+        background: white;
+        border-radius: var(--radius);
+        box-shadow: var(--shadow-lg);
+        border-left: 4px solid var(--primary-color);
+        animation: slideInRight 0.3s ease-out;
+      }
+
+      .notification-success {
+        border-left-color: var(--success-color);
+      }
+
+      .notification-error {
+        border-left-color: var(--danger-color);
+      }
+
+      .notification-warning {
+        border-left-color: var(--warning-color);
+      }
+
+      .notification-info {
+        border-left-color: var(--info-color);
+      }
+
+      .notification-content {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 16px;
+        gap: 12px;
+      }
+
+      .notification-message {
+        flex: 1;
+        color: var(--text-primary);
+        font-weight: 500;
+      }
+
+      .notification-close {
+        background: none;
+        border: none;
+        color: var(--text-muted);
+        font-size: 18px;
+        cursor: pointer;
+        padding: 0;
+        width: 24px;
+        height: 24px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 50%;
+        transition: all 0.2s ease;
+      }
+
+      .notification-close:hover {
+        background: var(--light-bg);
+        color: var(--text-primary);
+      }
+
+      @keyframes slideInRight {
+        from {
+          transform: translateX(100%);
+          opacity: 0;
+        }
+        to {
+          transform: translateX(0);
+          opacity: 1;
+        }
+      }
+
+      /* Bildirim Paneli */
+      .notification-panel {
+        position: fixed;
+        top: 80px; /* Üstbilgi yüksekliğine göre ayarla */
+        right: 20px;
+        width: 350px;
+        background: white;
+        border-radius: var(--radius);
+        box-shadow: var(--shadow-lg);
+        z-index: 10000;
+        display: flex;
+        flex-direction: column;
+        max-height: 80vh;
+        overflow-y: auto;
+        border: 1px solid var(--border-color);
+      }
+
+      .notification-panel-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 16px 20px;
+        border-bottom: 1px solid var(--border-color);
+        background: var(--light-bg);
+      }
+
+      .notification-panel-header h3 {
+        margin: 0;
+        color: var(--text-primary);
+        font-size: 1.125rem;
+      }
+
+      .close-btn {
+        background: none;
+        border: none;
+        color: var(--text-muted);
+        font-size: 1.5rem;
+        cursor: pointer;
+        padding: 0;
+        width: 32px;
+        height: 32px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 50%;
+        transition: all 0.2s ease;
+      }
+
+      .close-btn:hover {
+        background: var(--light-bg);
+        color: var(--text-primary);
+      }
+
+      .notification-list {
+        padding: 16px 20px;
+      }
+
+      .notification-list .notification {
+        margin-bottom: 10px;
+      }
+
+      /* Bildirim Zili */
+      .notification-bell {
+        position: relative;
+        cursor: pointer;
+        padding: 8px;
+        border-radius: 50%;
+        transition: all 0.2s ease;
+        font-size: 1.25rem;
+      }
+
+      .notification-bell:hover {
+        background: var(--light-bg);
+      }
+
+      .notification-badge {
+        position: absolute;
+        top: -5px;
+        right: -5px;
+        background: var(--danger-color);
+        color: white;
+        border-radius: 50%;
+        width: 20px;
+        height: 20px;
+        font-size: 12px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: 600;
+      }
+
+      .notification-read {
+        opacity: 0.7;
+        background-color: var(--light-bg);
+      }
+
+      .notification-action-btn {
+        background: var(--secondary-color);
+        color: white;
+        border: none;
+        border-radius: var(--radius-sm);
+        padding: 8px 12px;
+        font-size: 12px;
+        cursor: pointer;
+        transition: background 0.2s ease;
+      }
+
+      .notification-action-btn:hover:not(:disabled) {
+        background: var(--secondary-hover);
+      }
+
+      .notification-action-btn:disabled {
+        background: var(--border-color);
+        cursor: not-allowed;
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <div class="brand">🍽️ Kantin Yönetim</div>
+      <div class="nav">
+        <a href="/">📊 Ana Sayfa</a>
+        <a href="/menu/">🍽️ Menü</a>
+        <a href="/orders/">📋 Siparişler</a>
+        <a href="/stock/" id="stockLink" style="display:none">📦 Stok</a>
+        <a href="/users/" id="usersLink" style="display:none">👥 Kullanıcılar</a>
+        <a href="/logs/" id="logsLink" style="display:none">📝 Loglar</a>
+      </div>
+      <div style="display:flex; align-items:center; gap:16px">
+        <span id="whoami" class="muted"></span>
+        <div class="notification-bell" onclick="toggleNotifications()">
+          🔔 <span id="notificationCount" class="notification-badge" style="display:none">0</span>
+        </div>
+        <button onclick="logout()" class="btn-outline">Çıkış Yap</button>
+      </div>
+    </header>
+    <main>
+      {% block content %}{% endblock %}
+    </main>
+    <div id="notifications" class="notifications-container"></div>
+    
+    <!-- Bildirim Paneli -->
+    <div id="notificationPanel" class="notification-panel" style="display:none">
+      <div class="notification-panel-header">
+        <h3>Bildirimler</h3>
+        <button onclick="closeNotificationPanel()" class="close-btn">&times;</button>
+      </div>
+      <div id="notificationList" class="notification-list">
+        <!-- Bildirimler buraya yüklenecek -->
+      </div>
+    </div>
+    
+    <script>
+      let accessToken = localStorage.getItem('access') || '';
+      
+      function ensureAuth() {
+        if (!accessToken) { 
+          window.location.href = '/login/'; 
+        }
+      }
+      
+      function api(path, opts={}) {
+        const headers = opts.headers || {};
+        if (accessToken) headers['Authorization'] = `Bearer ${accessToken}`;
+        headers['Content-Type'] = 'application/json';
+        return fetch(path, { ...opts, headers });
+      }
+      
+      function getCookie(name) {
+        let cookieValue = null;
+        if (document.cookie && document.cookie !== '') {
+            const cookies = document.cookie.split(';');
+            for (let i = 0; i < cookies.length; i++) {
+                const cookie = cookies[i].trim();
+                // Does this cookie string begin with the name we want?
+                if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                    cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                    break;
+                }
+            }
+        }
+        return cookieValue;
+      }
+
+      async function logout() {
+        // Call backend logout endpoint to log the action
+        try {
+          const res = await api('/api/users/logout/', { method: 'POST' });
+          if (!res.ok) {
+            console.error("Backendde çıkış yapılamadı:", await res.json());
+          }
+        } catch (e) {
+          console.error("Backend çıkış çağrısında hata:", e);
+        }
+
+        localStorage.removeItem('access');
+        localStorage.removeItem('refresh');
+        localStorage.removeItem('cart');
+        window.location.href = '/login/';
+      }
+      
+      async function loadCurrentUser() {
+        try {
+          const res = await api('/api/users/me/');
+          if (!res.ok) return;
+          const data = await res.json();
+          const me = data;
+          if (me && me.username) {
+            const roleEmoji = me.role === 'admin' ? '👑' : me.role === 'staff' ? '👨‍💼' : '👤';
+            document.getElementById('whoami').innerHTML = `${roleEmoji} ${me.username} <span class="muted">(${me.role})</span>`;
+            if (me.role === 'staff' || me.role === 'admin') {
+              const link = document.getElementById('stockLink');
+              if (link) link.style.display = '';
+              if (me.role === 'admin') {
+                const usersLink = document.getElementById('usersLink');
+                if (usersLink) usersLink.style.display = '';
+                const logsLink = document.getElementById('logsLink');
+                if (logsLink) logsLink.style.display = '';
+              }
+            }
+          }
+        } catch (e) {
+          console.error('Mevcut kullanıcı yüklenemedi:', e);
+        }
+      }
+      
+      document.addEventListener('DOMContentLoaded', () => {
+        if (!accessToken && window.location.pathname !== '/login/') {
+          window.location.href = '/login/';
+        } else {
+          loadCurrentUser();
+        }
+      });
+
+      // Global bildirim sistemi
+      function showNotification(message, type = 'info', duration = 5000) {
+        const notificationsContainer = document.getElementById('notifications');
+        const notification = document.createElement('div');
+        notification.className = `notification notification-${type}`;
+        notification.innerHTML = `
+          <div class="notification-content">
+            <span class="notification-message">${message}</span>
+            <button class="notification-close" onclick="this.parentElement.parentElement.remove()">&times;</button>
+          </div>
+        `;
+        
+        notificationsContainer.appendChild(notification);
+        
+        // Auto-remove after duration
+        setTimeout(() => {
+          if (notification.parentNode) {
+            notification.remove();
+          }
+        }, duration);
+        
+        return notification;
+      }
+      
+      // Global hata yöneticisi
+      window.addEventListener('error', function(e) {
+        console.error('Genel hata:', e.error);
+        showNotification('Beklenmeyen bir hata oluştu. Lütfen sayfayı yenileyin.', 'error');
+      });
+      
+      // İşlenmeyen promise reddi yöneticisi
+      window.addEventListener('unhandledrejection', function(e) {
+        console.error('İşlenmeyen promise reddi:', e.reason);
+        showNotification('Bir ağ hatası oluştu. Lütfen bağlantınızı kontrol edin.', 'error');
+      });
+
+      // Bildirim Paneli Fonksiyonları
+      let notifications = [];
+
+      async function loadNotifications() {
+          try {
+              const res = await api('/api/notifications/');
+              if (!res.ok) {
+                  console.error('Bildirimler yüklenemedi');
+                  showNotification('Bildirimler yüklenemedi.', 'error');
+                  return;
+              }
+              notifications = await res.json();
+              renderNotifications();
+          } catch (error) {
+              console.error('Bildirimler yüklenirken hata oluştu:', error);
+              showNotification('Bildirimler yüklenirken hata oluştu.', 'error');
+          }
+      }
+
+      function renderNotifications() {
+          const notificationList = document.getElementById('notificationList');
+          const notificationCount = document.getElementById('notificationCount');
+          let unreadCount = 0;
+          notificationList.innerHTML = '';
+
+          if (notifications.length === 0) {
+              notificationList.innerHTML = '<div class="muted" style="padding: 16px;">Bildirim yok</div>';
+          }
+
+          notifications.forEach(n => {
+              if (!n.read) {
+                  unreadCount++;
+              }
+              const notificationItem = document.createElement('div');
+              notificationItem.className = `notification notification-${n.priority} ${n.read ? 'notification-read' : ''}`;
+              notificationItem.innerHTML = `
+                  <div class="notification-content">
+                      <span class="notification-message">
+                          <strong>${n.title}</strong><br/>
+                          ${n.message}
+                          <div class="muted" style="font-size: 11px; margin-top: 4px;">${new Date(n.created_at).toLocaleString('tr-TR')}</div>
+                      </span>
+                      <button onclick="markNotificationRead(${n.id})" class="notification-action-btn" ${n.read ? 'disabled' : ''}>${n.read ? 'Okundu' : 'Okundu Olarak İşaretle'}</button>
+                  </div>
+              `;
+              notificationList.appendChild(notificationItem);
+          });
+
+          if (unreadCount > 0) {
+              notificationCount.style.display = '';
+              notificationCount.innerText = unreadCount;
+          } else {
+              notificationCount.style.display = 'none';
+          }
+      }
+
+      async function markNotificationRead(notificationId) {
+          try {
+              const res = await api(`/api/notifications/${notificationId}/read/`, { method: 'POST' });
+              if (res.ok) {
+                  await loadNotifications();
+              } else {
+                  showNotification('Bildirim okundu olarak işaretlenemedi.', 'error');
+              }
+          } catch (error) {
+              console.error('Bildirim okundu olarak işaretlenirken hata oluştu:', error);
+              showNotification('Bildirim okundu olarak işaretlenirken hata oluştu.', 'error');
+          }
+      }
+
+      function toggleNotifications() {
+          const panel = document.getElementById('notificationPanel');
+          panel.style.display = panel.style.display === 'none' ? 'flex' : 'none';
+          if (panel.style.display === 'flex') {
+              loadNotifications(); // Paneli açarken bildirimleri yeniden yükle
+          }
+      }
+
+      function closeNotificationPanel() {
+          document.getElementById('notificationPanel').style.display = 'none';
+      }
+
+      // Bildirimleri periyodik olarak yükle (örneğin, her 30 saniyede bir)
+      setInterval(loadNotifications, 30000);
+
+      // İlk yükleme
+      loadNotifications();
+    </script>
+    {% block scripts %}{% endblock %}
+  </body>
+  </html>
+
+

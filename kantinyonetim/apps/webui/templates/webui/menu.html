@@ -1,0 +1,336 @@
+{% extends 'webui/base.html' %}
+{% block content %}
+<script>ensureAuth();</script>
+<h2>Menü Yönetimi</h2>
+<div class="row">
+  <div class="card" style="width:58%">
+    <div style="display:flex;justify-content:space-between;align-items:center; margin-bottom:16px">
+      <button onclick="loadMenu()" class="btn-primary">Yenile</button>
+      <div class="muted">Sepetteki ürünler: <span id="cartCount">0</span></div>
+    </div>
+    
+    <!-- Personel/Yönetici başkaları için sipariş bölümü -->
+    <div id="orderForOthers" style="display:none; margin-bottom:16px; padding:12px; background:#f8f9fa; border-radius:6px;">
+      <h4 style="margin:0 0 8px 0">Müşteri İçin Sipariş Oluştur</h4>
+      <div style="display:flex; gap:8px; align-items:center">
+        <input id="customerUsername" placeholder="Müşteri kullanıcı adı" style="flex:1"/>
+        <button onclick="setOrderForCustomer()" class="btn-secondary">Müşteri Ayarla</button>
+        <button onclick="clearOrderForCustomer()" class="btn-outline">Temizle</button>
+      </div>
+      <div id="customerInfo" class="muted" style="margin-top:8px"></div>
+    </div>
+    
+    <!-- Yönetici/Personel menü yönetimi bölümü -->
+    <div id="menuManagement" style="display:none; margin-bottom:16px; padding:12px; background:#f0f9ff; border-radius:6px; border:1px solid #0ea5e9;">
+      <h4 style="margin:0 0 8px 0; color:#0c4a6e">Menü Yönetimi</h4>
+      <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap">
+        <input id="newMenuItemName" placeholder="Ürün adı" style="flex:1"/>
+        <input id="newMenuItemPrice" placeholder="Fiyat" type="number" step="0.01" style="width:100px"/>
+        <button onclick="createMenuItem()" class="btn-success">Öğe Oluştur</button>
+      </div>
+      <div id="menuItemStatus" class="muted" style="margin-top:8px"></div>
+    </div>
+    
+    <div id="menu"></div>
+  </div>
+  <div class="card" style="width:38%">
+    <h3>Sepet</h3>
+    <div id="cart"></div>
+    <div style="display:flex; gap:8px; margin-top:8px">
+      <button onclick="clearCart()" class="btn-outline">Temizle</button>
+      <button onclick="confirmOrder()" class="btn-primary">Siparişi Onayla</button>
+    </div>
+    <div id="cartStatus" class="muted"></div>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+  let cart = JSON.parse(localStorage.getItem('cart') || '[]');
+  let currentUserRole = 'customer';
+  let orderForCustomer = null;
+
+  async function loadCurrentUserRole() {
+    try {
+      const res = await api('/api/users/me/');
+      if (res.ok) {
+        const me = await res.json();
+        currentUserRole = me.role || 'customer';
+        if (currentUserRole === 'staff' || currentUserRole === 'admin') {
+          document.getElementById('orderForOthers').style.display = 'block';
+          document.getElementById('menuManagement').style.display = 'block';
+        }
+      }
+    } catch (e) {
+      console.error('Failed to load user role:', e);
+    }
+  }
+
+  function saveCart() {
+    localStorage.setItem('cart', JSON.stringify(cart));
+    renderCart();
+  }
+
+  function renderCart() {
+    document.getElementById('cartCount').innerText = cart.reduce((a,c)=>a+c.qty, 0);
+    if (cart.length === 0) {
+      document.getElementById('cart').innerHTML = '<div class="muted">Sepet boş</div>';
+      return;
+    }
+    const rows = cart.map(line => `
+      <tr>
+        <td>${line.menu_item_name}</td>
+        <td>₺${line.price}</td>
+        <td>
+          <button onclick="dec(${line.menu_item})" class="btn-small">-</button>
+          <span style="margin:0 8px">${line.qty}</span>
+          <button onclick="inc(${line.menu_item})" class="btn-small">+</button>
+        </td>
+        <td>₺${(Number(line.price) * line.qty).toFixed(2)}</td>
+        <td><button onclick="rem(${line.menu_item})" class="btn-small btn-danger">Kaldır</button></td>
+      </tr>
+    `).join('');
+    document.getElementById('cart').innerHTML = `
+      <table>
+        <thead><tr><th>Ürün</th><th>Fiyat</th><th>Adet</th><th>Toplam</th><th></th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table>`;
+  }
+
+  function inc(id) {
+    const idx = cart.findIndex(l => l.menu_item === id);
+    if (idx >= 0) { cart[idx].qty += 1; saveCart(); }
+  }
+  function dec(id) {
+    const idx = cart.findIndex(l => l.menu_item === id);
+    if (idx >= 0) {
+      cart[idx].qty -= 1; if (cart[idx].qty <= 0) cart.splice(idx,1); saveCart();
+    }
+  }
+  function rem(id) {
+    cart = cart.filter(l => l.menu_item !== id); saveCart();
+  }
+  function clearCart() { cart = []; saveCart(); }
+
+  async function loadMenu() {
+    const res = await fetch('/api/menu-items/');
+    const items = await res.json();
+    const html = [`<table class="menu-table"><thead><tr><th>ID</th><th>Ad</th><th>Açıklama</th><th>Fiyat</th><th>Durum</th><th>Sepete Ekle</th>${(currentUserRole === 'admin' || currentUserRole === 'staff') ? '<th>Eylemler</th>' : ''}</tr></thead><tbody>`]
+      .concat(items.map(i => `
+        <tr>
+          <td>${i.id}</td>
+          <td><strong>${i.name}</strong></td>
+          <td class="item-description">${i.description || 'Açıklama yok'}</td>
+          <td>₺${i.price}</td>
+          <td><span class="chip ${i.is_available ? 'status-available' : 'status-unavailable'}">${i.is_available ? 'Mevcut' : 'Mevcut Değil'}</span></td>
+          <td>
+            <input id="qty_${i.id}" value="1" style="width:60px" ${!i.is_available ? 'disabled' : ''}/>
+            <button onclick="add(${i.id}, '${i.name.replace(/'/g, "'")}', '${i.price}')" ${!i.is_available ? 'disabled' : ''} class="btn-small">Ekle</button>
+          </td>
+          ${(currentUserRole === 'admin' || currentUserRole === 'staff') ? `
+            <td>
+              <button onclick="editMenuItem(${i.id}, '${i.name.replace(/'/g, "'")}', '${i.price}', '${(i.description || '').replace(/'/g, "'")}', ${i.is_available})" class="btn-small btn-secondary">Düzenle</button>
+              <button onclick="toggleMenuItemStatus(${i.id}, ${i.is_available})" class="btn-small ${i.is_available ? 'btn-warning' : 'btn-success'}">${i.is_available ? 'Devre Dışı Bırak' : 'Etkinleştir'}</button>
+            </td>
+          ` : ''}
+        </tr>`))
+      .concat(['</tbody></table>']).join('');
+    document.getElementById('menu').innerHTML = html;
+    renderCart();
+  }
+
+  function add(menuItemId, name, price) {
+    const qty = parseInt(document.getElementById(`qty_${menuItemId}`).value || '1', 10);
+    const existing = cart.find(l => l.menu_item === menuItemId);
+    if (existing) existing.qty += qty; else cart.push({ menu_item: menuItemId, menu_item_name: name, price: String(price), qty });
+    saveCart();
+  }
+
+  async function createMenuItem() {
+    const name = document.getElementById('newMenuItemName').value.trim();
+    const price = parseFloat(document.getElementById('newMenuItemPrice').value);
+    
+    if (!name || isNaN(price) || price <= 0) {
+      document.getElementById('menuItemStatus').innerHTML = '<span class="err">Lütfen geçerli bir ad ve fiyat girin</span>';
+      return;
+    }
+    
+    document.getElementById('menuItemStatus').innerHTML = '<span class="muted">Menü öğesi oluşturuluyor...</span>';
+    
+    try {
+      const res = await api('/api/menu-items/', {
+        method: 'POST',
+        body: JSON.stringify({
+          name: name,
+          price: price,
+          description: 'Yeni menü öğesi',
+          is_available: true
+        })
+      });
+      
+      if (res.ok) {
+        document.getElementById('menuItemStatus').innerHTML = '<span class="ok">Menü öğesi başarıyla oluşturuldu!</span>';
+        document.getElementById('newMenuItemName').value = '';
+        document.getElementById('newMenuItemPrice').value = '';
+        loadMenu();
+        
+        setTimeout(() => {
+          document.getElementById('menuItemStatus').innerHTML = '';
+        }, 3000);
+      } else {
+        const errorData = await res.json();
+        document.getElementById('menuItemStatus').innerHTML = `<span class="err">Başarısız: ${JSON.stringify(errorData)}</span>`;
+      }
+    } catch (error) {
+      document.getElementById('menuItemStatus').innerHTML = '<span class="err">Menü öğesi oluşturulurken hata oluştu</span>';
+    }
+  }
+
+  async function editMenuItem(id, currentName, currentPrice, currentDescription, currentAvailable) {
+    const newName = prompt('Yeni adı girin:', currentName);
+    if (!newName) return;
+    
+    const newPrice = prompt('Yeni fiyatı girin:', currentPrice);
+    if (!newPrice || isNaN(parseFloat(newPrice))) return;
+    
+    const newDescription = prompt('Yeni açıklamayı girin:', currentDescription);
+    if (newDescription === null) return;
+    
+    try {
+      const res = await api(`/api/menu-items/${id}/`, {
+        method: 'PUT',
+        body: JSON.stringify({
+          name: newName,
+          price: parseFloat(newPrice),
+          description: newDescription,
+          is_available: currentAvailable
+        })
+      });
+      
+      if (res.ok) {
+        alert('Menü öğesi başarıyla güncellendi!');
+        loadMenu();
+      } else {
+        const errorData = await res.json();
+        alert('Güncelleme başarısız: ' + JSON.stringify(errorData));
+      }
+    } catch (error) {
+      alert('Menü öğesi güncellenirken hata oluştu');
+    }
+  }
+
+  async function toggleMenuItemStatus(id, currentStatus) {
+    try {
+      const res = await api(`/api/menu-items/${id}/`, {
+        method: 'PUT',
+        body: JSON.stringify({
+          is_available: !currentStatus
+        })
+      });
+      
+      if (res.ok) {
+        alert(`Menü öğesi ${!currentStatus ? 'etkinleştirildi' : 'devre dışı bırakıldı'} başarıyla!`);
+        loadMenu();
+      } else {
+        const errorData = await res.json();
+        alert('Durum güncellenirken başarısız olundu: ' + JSON.stringify(errorData));
+      }
+    } catch (error) {
+      alert('Menü öğesi durumu güncellenirken hata oluştu');
+    }
+  }
+
+  async function setOrderForCustomer() {
+    const username = document.getElementById('customerUsername').value.trim();
+    if (!username) {
+      alert('Lütfen bir müşteri kullanıcı adı girin');
+      return;
+    }
+    
+    try {
+      const res = await api(`/api/users/search/?username=${username}`);
+      if (res.ok) {
+        const users = await res.json();
+        if (users.length > 0) {
+          orderForCustomer = users[0];
+          document.getElementById('customerInfo').innerHTML = `<span class="ok">Şu müşteri için sipariş veriliyor: ${orderForCustomer.username} (${orderForCustomer.role})</span>`;
+          document.getElementById('customerUsername').value = '';
+        } else {
+          document.getElementById('customerInfo').innerHTML = '<span class="err">Kullanıcı bulunamadı</span>';
+        }
+      } else {
+        document.getElementById('customerInfo').innerHTML = '<span class="err">Kullanıcı bulunamadı</span>';
+      }
+    } catch (e) {
+      document.getElementById('customerInfo').innerHTML = '<span class="err">Kullanıcı bulunurken hata oluştu</span>';
+    }
+  }
+
+  function clearOrderForCustomer() {
+    orderForCustomer = null;
+    document.getElementById('customerInfo').innerHTML = '';
+    document.getElementById('customerUsername').value = '';
+  }
+
+  async function confirmOrder() {
+    if (cart.length === 0) { 
+      document.getElementById('cartStatus').innerText = 'Sepet boş'; 
+      return; 
+    }
+    
+    document.getElementById('cartStatus').innerText = 'Sipariş oluşturuluyor...';
+    
+    // Create order with or without customer specification
+    const orderData = {};
+    if (orderForCustomer && (currentUserRole === 'staff' || currentUserRole === 'admin')) {
+      orderData.user = orderForCustomer.id;
+    }
+    
+    const res = await api('/api/orders/', { method: 'POST', body: JSON.stringify(orderData) });
+    const data = await res.json();
+    if (!res.ok) { 
+      document.getElementById('cartStatus').innerText = 'Başarısız: ' + JSON.stringify(data); 
+      return; 
+    }
+    
+    const orderId = data.id;
+    let errors = [];
+    
+    for (const line of cart) {
+      const r = await api('/api/order-items/', { 
+        method: 'POST', 
+        body: JSON.stringify({ 
+          order: orderId, 
+          menu_item: line.menu_item, 
+          quantity: line.qty 
+        }) 
+      });
+      if (!r.ok) { 
+        const d = await r.json(); 
+        errors.push({ item: line.menu_item_name, error: d }); 
+      }
+    }
+    
+    if (errors.length) {
+      document.getElementById('cartStatus').innerText = 'Bazı ürünler başarısız oldu: ' + JSON.stringify(errors);
+    } else {
+      document.getElementById('cartStatus').innerHTML = '<span class="ok">Sipariş başarıyla oluşturuldu!</span>';
+      cart = []; 
+      saveCart();
+      clearOrderForCustomer();
+      localStorage.setItem('current_order_id', orderId);
+      
+      // Redirect to order detail page
+      setTimeout(() => {
+        window.location.href = `/orders/${orderId}`;
+      }, 1000);
+    }
+  }
+
+  // Initialize
+  loadCurrentUserRole();
+  loadMenu();
+</script>
+{% endblock %}
+
+
