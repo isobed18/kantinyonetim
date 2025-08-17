@@ -53,4 +53,3 @@ class MenuItemSerializer(serializers.ModelSerializer):
                 request=request
             )
         return updated_instance
-        

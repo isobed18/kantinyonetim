@@ -10,6 +10,14 @@ from apps.users.utils import log_user_action
 class MenuItemViewSet(viewsets.ModelViewSet):
     queryset = MenuItem.objects.all()
     serializer_class = MenuItemSerializer
+    
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        category = self.request.query_params.get('category')
+        if category:
+            return queryset.filter(category=category)
+        return queryset
+
     def get_permissions(self):
         if self.action in ['list', 'retrieve']:
             return [AllowAny()]
@@ -30,4 +38,3 @@ class MenuItemViewSet(viewsets.ModelViewSet):
             request=request
         )
         return super().destroy(request, *args, **kwargs)
-    

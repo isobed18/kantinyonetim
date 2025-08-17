@@ -9,7 +9,17 @@
       <div class="muted">Sepetteki ürünler: <span id="cartCount">0</span></div>
     </div>
     
-    <!-- Personel/Yönetici başkaları için sipariş bölümü -->
+    <div style="margin-bottom: 16px;">
+        <label for="categoryFilter" class="form-label">Kategoriye Göre Filtrele</label>
+        <select id="categoryFilter" onchange="loadMenu()" class="status-select">
+            <option value="">Tüm Kategoriler</option>
+            <option value="ana_yemek">Ana Yemek</option>
+            <option value="icecek">İçecek</option>
+            <option value="tatli">Tatlı</option>
+            <option value="aperatif">Aperatif</option>
+        </select>
+    </div>
+
     <div id="orderForOthers" style="display:none; margin-bottom:16px; padding:12px; background:#f8f9fa; border-radius:6px;">
       <h4 style="margin:0 0 8px 0">Müşteri İçin Sipariş Oluştur</h4>
       <div style="display:flex; gap:8px; align-items:center">
@@ -20,7 +30,6 @@
       <div id="customerInfo" class="muted" style="margin-top:8px"></div>
     </div>
     
-    <!-- Yönetici/Personel menü yönetimi bölümü -->
     <div id="menuManagement" style="display:none; margin-bottom:16px; padding:12px; background:#f0f9ff; border-radius:6px; border:1px solid #0ea5e9;">
       <h4 style="margin:0 0 8px 0; color:#0c4a6e">Menü Yönetimi</h4>
       <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap">
@@ -113,7 +122,12 @@
   function clearCart() { cart = []; saveCart(); }
 
   async function loadMenu() {
-    const res = await fetch('/api/menu-items/');
+    const category = document.getElementById('categoryFilter').value;
+    let url = '/api/menu-items/';
+    if (category) {
+        url += `?category=${category}`;
+    }
+    const res = await fetch(url);
     const items = await res.json();
     const html = [`<table class="menu-table"><thead><tr><th>ID</th><th>Ad</th><th>Açıklama</th><th>Fiyat</th><th>Durum</th><th>Sepete Ekle</th>${(currentUserRole === 'admin' || currentUserRole === 'staff') ? '<th>Eylemler</th>' : ''}</tr></thead><tbody>`]
       .concat(items.map(i => `
@@ -332,5 +346,3 @@
   loadMenu();
 </script>
 {% endblock %}
-
-

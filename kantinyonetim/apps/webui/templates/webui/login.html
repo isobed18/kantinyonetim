@@ -164,7 +164,7 @@
         color: var(--primary-color);
         border: 1px solid #bfdbfe;
       }
-
+      
       .demo-info {
         margin-top: 24px;
         padding: 16px;
@@ -197,7 +197,7 @@
         border-radius: 6px;
         border: 1px solid var(--border-color);
       }
-
+    
       .demo-account .role {
         font-weight: 600;
         color: var(--primary-color);
@@ -207,21 +207,7 @@
         color: var(--text-secondary);
         font-family: monospace;
       }
-
-      .copy-btn {
-        background: var(--secondary-color);
-        color: white;
-        border: none;
-        border-radius: 4px;
-        padding: 4px 8px;
-        font-size: 10px;
-        cursor: pointer;
-        transition: background 0.2s ease;
-      }
-
-      .copy-btn:hover {
-        background: #475569;
-      }
+    
 
       .footer {
         margin-top: 24px;
@@ -320,7 +306,7 @@
       </form>
       
       <div id="loginStatus" class="status" style="display:none"></div>
-      
+      <!--
       <div class="demo-info">
         <h4>Demo Hesapları</h4>
         <div class="demo-accounts">
@@ -329,21 +315,18 @@
               <span class="role">Yönetici:</span>
               <span class="credentials">admin / 123Admin$</span>
             </div>
-            <button class="copy-btn" onclick="copyCredentials('admin', '123Admin$')">Doldur</button>
           </div>
           <div class="demo-account">
             <div>
               <span class="role">Personel:</span>
               <span class="credentials">staff / 123Staff$</span>
             </div>
-            <button class="copy-btn" onclick="copyCredentials('staff', '123Staff$')">Doldur</button>
           </div>
           <div class="demo-account">
             <div>
               <span class="role">Müşteri:</span>
               <span class="credentials">customer / 123Customer$</span>
             </div>
-            <button class="copy-btn" onclick="copyCredentials('customer', '123Customer$')">Doldur</button>
           </div>
         </div>
       </div>
@@ -353,7 +336,7 @@
         <p>Staj Projesi - Kantin Yönetim Sistemi</p>
       </div>
     </div>
-
+-->
     <script>
       let isLoggingIn = false;
 
@@ -458,26 +441,6 @@
         statusDiv.style.display = 'none';
       }
 
-      function copyCredentials(username, password) {
-        // Auto-fill the form fields
-        document.getElementById('username').value = username;
-        document.getElementById('password').value = password;
-        
-        // Show temporary success feedback
-        const btn = event.target;
-        const originalText = btn.textContent;
-        btn.textContent = 'Dolduruldu!';
-        btn.style.background = '#16a34a';
-        
-        // Focus on username field
-        document.getElementById('username').focus();
-        
-        setTimeout(() => {
-          btn.textContent = originalText;
-          btn.style.background = '';
-        }, 1500);
-      }
-
       // Auto-focus username field
       document.getElementById('username').focus();
       
@@ -490,5 +453,3 @@
     </script>
   </body>
 </html>
-
-
