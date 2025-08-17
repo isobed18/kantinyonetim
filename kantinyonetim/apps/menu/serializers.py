@@ -1,4 +1,4 @@
-from rest_framework import serializers 
+from rest_framework import serializers
 from .models import MenuItem
 from apps.stock.models import Stock
 from apps.users.utils import log_user_action
@@ -13,7 +13,7 @@ class MenuItemSerializer(serializers.ModelSerializer):
     def create(self, validated_data):
         menu_item = super().create(validated_data)
         Stock.objects.create(menu_item=menu_item, quantity=0)
-        
+
         # menu ogesi olusturma logu
         request = self.context.get('request')
         if request:
@@ -34,7 +34,8 @@ class MenuItemSerializer(serializers.ModelSerializer):
         old_price = instance.price
         old_description = instance.description
         old_is_available = instance.is_available
-        
+        old_image = instance.image
+
         updated_instance = super().update(instance, validated_data)
 
         changes = {}
@@ -42,7 +43,8 @@ class MenuItemSerializer(serializers.ModelSerializer):
         if old_price != updated_instance.price: changes['price'] = {'old': str(old_price), 'new': str(updated_instance.price)}
         if old_description != updated_instance.description: changes['description'] = {'old': old_description, 'new': updated_instance.description}
         if old_is_available != updated_instance.is_available: changes['is_available'] = {'old': old_is_available, 'new': updated_instance.is_available}
-        
+        if old_image != updated_instance.image: changes['image'] = {'old': str(old_image), 'new': str(updated_instance.image)} # Basitçe string karşılaştırıyoruz
+
         if changes and request:
             log_user_action(
                 user=request.user,

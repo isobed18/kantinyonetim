@@ -45,7 +45,7 @@ class OrderItemSerializer(serializers.ModelSerializer):
         model = OrderItem
         fields = '__all__'
         extra_kwargs = {
-            # Not required on input; defaults to menu price unless staff/admin override
+            # input icin zorunlu degil ama admin/staff yazarsa override eder yeni fiyat olur indirim vb icin
             'price_at_order_time': {'required': False},
         }
 
@@ -54,7 +54,7 @@ class OrderItemSerializer(serializers.ModelSerializer):
         user = getattr(request, 'user', None) if request else None
         role = getattr(user, 'role', 'customer') if user and getattr(user, 'is_authenticated', False) else 'customer'
 
-        # sahiplik kontrolu: musteriler sadece kendi order'larina ekleyebilir
+        # sahiplik kontrolu: musteriler sadece kendi orderlarina ekleyebilir
         order = attrs.get('order') or (getattr(self, 'instance', None).order if getattr(self, 'instance', None) else None)
         if order is None:
             raise serializers.ValidationError({'order': 'Order is required.'})
@@ -69,17 +69,16 @@ class OrderItemSerializer(serializers.ModelSerializer):
 
         menu_item = attrs.get('menu_item') or getattr(getattr(self, 'instance', None), 'menu_item', None)
         quantity = attrs.get('quantity')
-        if menu_item and not menu_item.is_available:
-            raise serializers.ValidationError({'menu_item': 'This item is not available.'})
-        if quantity is not None and quantity <= 0:
-            raise serializers.ValidationError({'quantity': 'Quantity must be greater than zero.'})
         if menu_item and quantity is not None:
-            stock = Stock.objects.select_for_update().get(menu_item=menu_item)
-            # On update, consider previous quantity
-            existing_qty = getattr(self.instance, 'quantity', 0) if self.instance else 0
-            delta = quantity - existing_qty
-            if delta > 0 and stock.quantity < delta:
-                raise serializers.ValidationError({'quantity': 'Insufficient stock.'})
+            try:
+                stock = Stock.objects.get(menu_item=menu_item)
+                # On update, consider previous quantity
+                existing_qty = getattr(self.instance, 'quantity', 0) if self.instance else 0
+                delta = quantity - existing_qty
+                if delta > 0 and stock.quantity < delta:
+                    raise serializers.ValidationError({'quantity': f'Insufficient stock for {menu_item.name}.'})
+            except Stock.DoesNotExist:
+                raise serializers.ValidationError({'quantity': f'No stock information for {menu_item.name}.'})
         return attrs
 
     @transaction.atomic
@@ -90,11 +89,11 @@ class OrderItemSerializer(serializers.ModelSerializer):
         stock = Stock.objects.select_for_update().get(menu_item=menu_item)
         if stock.quantity < quantity:
             raise serializers.ValidationError({'quantity': 'Insufficient stock.'})
-        # Decide price snapshot: staff/admin can override; default to menu price
+        # price karari icin snapshot: admin/staff icin override kararı, defaultı menu price
         role = getattr(getattr(request, 'user', None), 'role', 'customer') if request else 'customer'
         override_price = validated_data.pop('price_at_order_time', None)
         if role in ['staff', 'admin'] and override_price is not None:
-            # Normalize and validate
+            # normalize price ve dogrulama
             if not isinstance(override_price, Decimal):
                 try:
                     override_price = Decimal(str(override_price))
@@ -104,34 +103,34 @@ class OrderItemSerializer(serializers.ModelSerializer):
                 raise serializers.ValidationError({'price_at_order_time': 'Price must be non-negative.'})
             validated_data['price_at_order_time'] = override_price
         else:
-            # Ignore any client-sent price for non-staff and use menu price
+            # staff/admin olmayan herkesin gonderdigi fiyati gormezden gel
             validated_data['price_at_order_time'] = menu_item.price
 
-        # Merge with existing line if present (unique order lines)
+        # varsa varolan line ile birlestir. unique order line
         existing = OrderItem.objects.select_for_update().filter(order=validated_data['order'], menu_item=menu_item).first()
         if existing:
-            # If overriding price conflicts with existing snapshot, reject
+            # varolan snapshotla cakisiyor mu check
             new_price = validated_data['price_at_order_time']
             if new_price != existing.price_at_order_time and role in ['staff', 'admin']:
                 raise serializers.ValidationError({'price_at_order_time': 'Line exists; adjust price via update first.'})
             
-            # Check combined quantity against stock before updating
+            # toplam quantityi guncellemeden once kontrol et
             combined_quantity = existing.quantity + quantity
             if stock.quantity < combined_quantity:
                 raise serializers.ValidationError({'quantity': 'Insufficient stock for combined quantity.'})
 
-            existing.quantity = combined_quantity # Assign combined quantity
+            existing.quantity = combined_quantity # birlestirilmis quantityi assign et
             existing.save(update_fields=['quantity'])
-            # Decrement stock
+            # stocktan dusme
             stock.quantity -= quantity
             stock.save()
             return existing
 
         order_item = super().create(validated_data)
-        # Decrement stock
+        # stocktan dusme
         stock.quantity -= quantity
         stock.save()
-        # Log order item creation with updated order total
+        # orderitem creationını
         # The order total is automatically updated by signals after order item save
         log_user_action(
             user=request.user, # The user who initiated the order item creation

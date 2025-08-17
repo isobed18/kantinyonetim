@@ -5,12 +5,13 @@ from apps.users.permissions import IsStaffOrAdmin
 from .models import MenuItem
 from .serializers import MenuItemSerializer
 from apps.users.utils import log_user_action
+from rest_framework.parsers import MultiPartParser, FormParser
 # Create your views here.
 
 class MenuItemViewSet(viewsets.ModelViewSet):
     queryset = MenuItem.objects.all()
     serializer_class = MenuItemSerializer
-    
+    parser_classes = (MultiPartParser, FormParser)
     def get_queryset(self):
         queryset = super().get_queryset()
         category = self.request.query_params.get('category')

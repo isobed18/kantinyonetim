@@ -517,6 +517,7 @@
         box-shadow: var(--shadow-lg);
         border-left: 4px solid var(--primary-color);
         animation: slideInRight 0.3s ease-out;
+        padding: 16px;
       }
 
       .notification-success {
@@ -534,40 +535,17 @@
       .notification-info {
         border-left-color: var(--info-color);
       }
-
-      .notification-content {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        padding: 16px;
-        gap: 12px;
-      }
-
+      
       .notification-message {
-        flex: 1;
         color: var(--text-primary);
         font-weight: 500;
+        margin-bottom: 8px;
+        display: block;
       }
-
-      .notification-close {
-        background: none;
-        border: none;
-        color: var(--text-muted);
-        font-size: 18px;
-        cursor: pointer;
-        padding: 0;
-        width: 24px;
-        height: 24px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        border-radius: 50%;
-        transition: all 0.2s ease;
-      }
-
-      .notification-close:hover {
-        background: var(--light-bg);
-        color: var(--text-primary);
+      
+      .notification-details {
+        font-size: 14px;
+        color: var(--text-secondary);
       }
 
       @keyframes slideInRight {
@@ -722,14 +700,12 @@
     </main>
     <div id="notifications" class="notifications-container"></div>
     
-    <!-- Bildirim Paneli -->
     <div id="notificationPanel" class="notification-panel" style="display:none">
       <div class="notification-panel-header">
         <h3>Bildirimler</h3>
         <button onclick="closeNotificationPanel()" class="close-btn">&times;</button>
       </div>
       <div id="notificationList" class="notification-list">
-        <!-- Bildirimler buraya yüklenecek -->
       </div>
     </div>
     
@@ -745,7 +721,13 @@
       function api(path, opts={}) {
         const headers = opts.headers || {};
         if (accessToken) headers['Authorization'] = `Bearer ${accessToken}`;
-        headers['Content-Type'] = 'application/json';
+        
+        // EĞER GÖVDE FormData İSE, Content-Type'I AYARLAMA.
+        // Tarayıcı bunu otomatik olarak multipart boundary ile birlikte ayarlar.
+        if (!(opts.body instanceof FormData)) {
+            headers['Content-Type'] = 'application/json';
+        }
+
         return fetch(path, { ...opts, headers });
       }
       
@@ -766,7 +748,6 @@
       }
 
       async function logout() {
-        // Call backend logout endpoint to log the action
         try {
           const res = await api('/api/users/logout/', { method: 'POST' });
           if (!res.ok) {
@@ -816,41 +797,40 @@
       });
 
       // Global bildirim sistemi
-      function showNotification(message, type = 'info', duration = 5000) {
+      function showNotification(message, type = 'info', duration = 3000) {
         const notificationsContainer = document.getElementById('notifications');
+        
+        // Create a new notification element
         const notification = document.createElement('div');
         notification.className = `notification notification-${type}`;
-        notification.innerHTML = `
-          <div class="notification-content">
-            <span class="notification-message">${message}</span>
-            <button class="notification-close" onclick="this.parentElement.parentElement.remove()">&times;</button>
-          </div>
-        `;
-        
+        notification.style.opacity = '0'; // Initial opacity for fade-in effect
+        notification.style.transform = 'translateX(100%)';
+
+        const messageEl = document.createElement('span');
+        messageEl.className = 'notification-message';
+        messageEl.innerText = message;
+        notification.appendChild(messageEl);
+
         notificationsContainer.appendChild(notification);
         
-        // Auto-remove after duration
+        // Animate the notification in
         setTimeout(() => {
-          if (notification.parentNode) {
-            notification.remove();
-          }
+            notification.style.transition = 'transform 0.3s ease-out, opacity 0.3s ease-out';
+            notification.style.opacity = '1';
+            notification.style.transform = 'translateX(0)';
+        }, 10); // Small delay to trigger transition
+
+        // Animate the notification out and remove it
+        setTimeout(() => {
+            notification.style.transition = 'transform 0.3s ease-in, opacity 0.3s ease-in';
+            notification.style.opacity = '0';
+            notification.style.transform = 'translateX(100%)';
+            setTimeout(() => {
+                notification.remove();
+            }, 300); // Wait for transition to finish
         }, duration);
-        
-        return notification;
       }
       
-      // Global hata yöneticisi
-      window.addEventListener('error', function(e) {
-        console.error('Genel hata:', e.error);
-        showNotification('Beklenmeyen bir hata oluştu. Lütfen sayfayı yenileyin.', 'error');
-      });
-      
-      // İşlenmeyen promise reddi yöneticisi
-      window.addEventListener('unhandledrejection', function(e) {
-        console.error('İşlenmeyen promise reddi:', e.reason);
-        showNotification('Bir ağ hatası oluştu. Lütfen bağlantınızı kontrol edin.', 'error');
-      });
-
       // Bildirim Paneli Fonksiyonları
       let notifications = [];
 
@@ -859,14 +839,14 @@
               const res = await api('/api/notifications/');
               if (!res.ok) {
                   console.error('Bildirimler yüklenemedi');
-                  showNotification('Bildirimler yüklenemedi.', 'error');
+                  // showNotification('Bildirimler yüklenemedi.', 'error'); // Çok fazla bildirim hatasına neden olabilir, kaldırdım.
                   return;
               }
               notifications = await res.json();
               renderNotifications();
           } catch (error) {
               console.error('Bildirimler yüklenirken hata oluştu:', error);
-              showNotification('Bildirimler yüklenirken hata oluştu.', 'error');
+              // showNotification('Bildirimler yüklenirken hata oluştu.', 'error'); // Kaldırdım
           }
       }
 
@@ -900,7 +880,7 @@
           });
 
           if (unreadCount > 0) {
-              notificationCount.style.display = '';
+              notificationCount.style.display = 'flex';
               notificationCount.innerText = unreadCount;
           } else {
               notificationCount.style.display = 'none';
@@ -923,9 +903,11 @@
 
       function toggleNotifications() {
           const panel = document.getElementById('notificationPanel');
-          panel.style.display = panel.style.display === 'none' ? 'flex' : 'none';
-          if (panel.style.display === 'flex') {
+          if (panel.style.display === 'none') {
+              panel.style.display = 'flex';
               loadNotifications(); // Paneli açarken bildirimleri yeniden yükle
+          } else {
+              panel.style.display = 'none';
           }
       }
 
@@ -941,6 +923,4 @@
     </script>
     {% block scripts %}{% endblock %}
   </body>
-  </html>
-
-
+</html>

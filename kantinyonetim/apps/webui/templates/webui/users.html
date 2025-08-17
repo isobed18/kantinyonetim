@@ -19,7 +19,7 @@
       <div style="display:flex; gap:12px; align-items:center; flex-wrap:wrap">
         <div>
           <label for="fUsername" class="form-label">İsme Göre Filtrele</label>
-          <input id="fUsername" placeholder="Enter username" style="width:200px"/>
+          <input id="fUsername" placeholder="Kullanıcı adını gir" style="width:200px"/>
         </div>
         <div>
           <label for="fRole" class="form-label">Role Göre Filtrele</label>
@@ -67,22 +67,22 @@
           </select>
         </div>
         <div>
-          <label for="newEmail" class="form-label">Email (Optional)</label>
+          <label for="newEmail" class="form-label">Email (Opsiyonel)</label>
           <input id="newEmail" type="email" placeholder="Enter email"/>
         </div>
         <div>
-          <label for="newFirstName" class="form-label">First Name (Optional)</label>
+          <label for="newFirstName" class="form-label">İsim(Opsiyonel)</label>
           <input id="newFirstName" placeholder="Enter first name"/>
         </div>
         <div>
-          <label for="newLastName" class="form-label">Last Name (Optional)</label>
+          <label for="newLastName" class="form-label">Soyisim (Opsiyonel)</label>
           <input id="newLastName" placeholder="Enter last name"/>
         </div>
       </div>
     </div>
     <div class="modal-footer">
-      <button onclick="createUser()" class="btn-primary">Create User</button>
-      <button onclick="closeCreateUserModal()" class="btn-outline">Cancel</button>
+      <button onclick="createUser()" class="btn-primary">Kullanıcı Oluştur</button>
+      <button onclick="closeCreateUserModal()" class="btn-outline">Geri</button>
     </div>
   </div>
 </div>
@@ -91,39 +91,39 @@
 <div id="editUserModal" class="modal" style="display:none">
   <div class="modal-content">
     <div class="modal-header">
-      <h3>Edit User</h3>
+      <h3>Kullanıcıyı Düzenle</h3>
       <span class="close" onclick="closeEditUserModal()">&times;</span>
     </div>
     <div class="modal-body">
       <div style="display:flex; flex-direction:column; gap:16px">
         <div>
-          <label for="editUsername" class="form-label">Username</label>
-          <input id="editUsername" placeholder="Enter username" required/>
+          <label for="editUsername" class="form-label">Kullanıcı Adı</label>
+          <input id="editUsername" placeholder="Kullanıcı adını gir" required/>
         </div>
         <div>
-          <label for="editRole" class="form-label">Role</label>
+          <label for="editRole" class="form-label">Rol</label>
           <select id="editRole" required>
-            <option value="">Select role</option>
-            <option value="customer">Customer</option>
-            <option value="staff">Staff</option>
-            <option value="admin">Admin</option>
+            <option value="">Rolü seç</option>
+            <option value="customer">Müşteri</option>
+            <option value="staff">Çalışan</option>
+            <option value="admin">Yönetici</option>
           </select>
         </div>
         <div>
           <label for="editEmail" class="form-label">Email</label>
-          <input id="editEmail" type="email" placeholder="Enter email"/>
+          <input id="editEmail" type="email" placeholder="Emaili girin"/>
         </div>
         <div>
-          <label for="editFirstName" class="form-label">First Name</label>
-          <input id="editFirstName" placeholder="Enter first name"/>
+          <label for="editFirstName" class="form-label">İsim</label>
+          <input id="editFirstName" placeholder="İsim"/>
         </div>
         <div>
-          <label for="editLastName" class="form-label">Last Name</label>
-          <input id="editLastName" placeholder="Enter last name"/>
+          <label for="editLastName" class="form-label">Soyisim</label>
+          <input id="editLastName" placeholder="Soyisimi girin"/>
         </div>
         <div>
-          <label for="editPassword" class="form-label">New Password (leave empty to keep current)</label>
-          <input id="editPassword" type="password" placeholder="Enter new password"/>
+          <label for="editPassword" class="form-label">Yeni Şifre (Eskisi ile devam etmek için boş bırakın)</label>
+          <input id="editPassword" type="password" placeholder="Yeni Şifreyi Girin"/>
         </div>
       </div>
     </div>
@@ -152,7 +152,7 @@
         
         // Only admin can access user management
         if (currentUserRole !== 'admin') {
-          alert('Access denied. Only administrators can manage users.');
+          alert('Erişim reddedildi, sadece yöneticiler kullanıcıları yönetebilir');
           window.location.href = '/';
           return;
         }
@@ -166,15 +166,15 @@
     try {
       const res = await api('/api/users/');
       if (!res.ok) {
-        alert('Failed to load users');
+        alert('Kullanıcıları yüklerken hata oldu');
         return;
       }
       
       allUsers = await res.json();
       applyFilters();
     } catch (error) {
-      console.error('Error loading users:', error);
-      alert('Failed to load users');
+      console.error('Kullanıcıları yüklerken hata oldu:', error);
+      alert('Kullanıcıları yüklerken hata oldu');
     }
   }
 
@@ -225,11 +225,11 @@
             <span class="detail-value">${user.id}</span>
           </div>
           <div class="detail-item">
-            <span class="detail-label">Created:</span>
+            <span class="detail-label">Oluşturuldu:</span>
             <span class="detail-value">${user.date_joined ? new Date(user.date_joined).toLocaleDateString('tr-TR') : 'N/A'}</span>
           </div>
           <div class="detail-item">
-            <span class="detail-label">Last Login:</span>
+            <span class="detail-label">Son Giriş:</span>
             <span class="detail-value">${user.last_login ? new Date(user.last_login).toLocaleDateString('tr-TR') : 'Never'}</span>
           </div>
         </div>
@@ -271,25 +271,25 @@
     const lastName = document.getElementById('newLastName').value.trim();
     
     if (!username || !password || !role) {
-      alert('Username, password, and role are required');
+      alert('Kullanıcı adı, şifre ve rol gereklidir.');
       return;
     }
     
     // Password strength validation
     if (!isPasswordStrong(password)) {
-      alert('Password must be at least 8 characters long and contain uppercase, lowercase, number, and special character');
+      alert('Şifre en az 8 haneden oluşmalı bir büyük harf, küçük harf, sayı ve özel karakter içermeli');
       return;
     }
     
     // Username validation
     if (username.length < 3) {
-      alert('Username must be at least 3 characters long');
+      alert('Kullanıcı adı en az 3 haneden oluşmalı');
       return;
     }
     
     // Email validation if provided
     if (email && !isValidEmail(email)) {
-      alert('Please enter a valid email address');
+      alert('Lütfen geçerli bir e mail giriniz');
       return;
     }
     
@@ -307,16 +307,16 @@
       });
       
       if (res.ok) {
-        alert('User created successfully!');
+        alert('Kullanıcı başarıyla oluşturuldu!');
         closeCreateUserModal();
         loadUsers();
       } else {
         const errorData = await res.json();
-        alert('Failed to create user: ' + JSON.stringify(errorData));
+        alert('Kullanıcı oluşturmada bir hata oluştu: ' + JSON.stringify(errorData));
       }
     } catch (error) {
-      console.error('Error creating user:', error);
-      alert('Error creating user');
+      console.error('Kullanıcı oluştururken oluşan hata:', error);
+      alert('Kullanıcı oluştururken bir hata oluştu');
     }
   }
 

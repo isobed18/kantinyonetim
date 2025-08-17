@@ -11,6 +11,7 @@ from apps.users.models import User
 from .models import Order, OrderItem
 from .serializers import OrderSerializer, OrderItemSerializer
 from apps.users.utils import log_user_action, notify_staff_new_order, notify_order_status_change, create_notification
+from apps.menu.models import MenuItem
 # Create your views here.
 
 class OrderViewSet(viewsets.ModelViewSet):
@@ -32,51 +33,70 @@ class OrderViewSet(viewsets.ModelViewSet):
 
     def get_permissions(self):
         # authenticated userlarin kendi orderlarini create etme, okuma ve cancel etme islemlerine izin verme
-        if self.action in ['create', 'list', 'retrieve', 'cancel']:
+        if self.action in ['list', 'retrieve', 'cancel', 'create_from_cart']:
             return [IsAuthenticated()]
         # diger islemler (update/delete) staff/admin ile kisitli
         return [IsStaffOrAdmin()]
-
-    def perform_create(self, serializer):
-        # staff/admin diger userlar icin order create edebilir
+   
+    @action(detail=False, methods=['post'], url_path='create-from-cart')
+    @transaction.atomic
+    def create_from_cart(self, request):
         user = self.request.user
-        if getattr(user, 'role', 'customer') in ['staff', 'admin']:
-            target_user_id = self.request.data.get('user')
-            if target_user_id:
-                try:
-                    target_user = User.objects.get(id=target_user_id)
-                    order = serializer.save(user=target_user)
-                    # actioni loglama
-                    log_user_action(
-                        user=user,
-                        action='create',
-                        resource_type='order',
-                        resource_id=order.id,
-                        details={'created_for': target_user.username},
-                        request=self.request
-                    )
-                    # yeni order hakkinda staffi bilgilendirme
-                    notify_staff_new_order(order, target_user)
-                    return
-                except User.DoesNotExist:
-                    pass
+        cart_items = request.data.get('items', [])
         
-        # Default: mevcut user icin create etme
-        order = serializer.save(user=user)
+        if not cart_items:
+            return Response({'detail': 'Sepetiniz boş.'}, status=status.HTTP_400_BAD_REQUEST)
 
-        # yeni order hakkinda staffi bilgilendirme
-        notify_staff_new_order(order, user)
-        # musteriyi yeni orderi hakkinda bilgilendirme
-        create_notification(
-            recipient=user,
-            notification_type='order_new',
-            title='Order Received!',
-            message=f'Your order #{order.id} has been successfully placed. Total: ₺{order.total}',
-            priority='high',
+        # 1. Stok kontrolü
+        for item_data in cart_items:
+            menu_item_id = item_data.get('menu_item')
+            quantity = item_data.get('qty')
+            try:
+                stock = Stock.objects.select_for_update().get(menu_item_id=menu_item_id)
+                if stock.quantity < quantity:
+                    menu_item = MenuItem.objects.get(id=menu_item_id)
+                    return Response(
+                        {'detail': f'"{menu_item.name}" için stok yetersiz.'},
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
+            except (Stock.DoesNotExist, MenuItem.DoesNotExist):
+                return Response(
+                    {'detail': f'ID {menu_item_id} olan ürün bulunamadı veya stok bilgisi yok.'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
+        # 2. Sipariş oluşturma
+        order = Order.objects.create(user=user)
+        for item_data in cart_items:
+            menu_item = MenuItem.objects.get(id=item_data.get('menu_item'))
+            quantity = item_data.get('qty')
+            OrderItem.objects.create(
+                order=order,
+                menu_item=menu_item,
+                quantity=quantity,
+                price_at_order_time=menu_item.price
+            )
+            # Stoktan düşme
+            stock = Stock.objects.get(menu_item=menu_item)
+            stock.quantity -= quantity
+            stock.save()
+
+        order.update_total() # Sipariş toplamını güncelle
+
+        # 3. Loglama ve bildirimler
+        log_user_action(
+            user=user,
+            action='order_placed',
             resource_type='order',
-            resource_id=order.id
+            resource_id=order.id,
+            details={'total': str(order.total), 'item_count': len(cart_items)},
+            request=request
         )
-
+        notify_staff_new_order(order, user)
+        # Müşteriye bildirim create_notification ile notify_order_status_change içinde yapılıyor.
+        
+        return Response(OrderSerializer(order, context={'request': request}).data, status=status.HTTP_201_CREATED)
+    
     def update(self, request, *args, **kwargs):
         instance = self.get_object()
         old_status = instance.status
@@ -99,19 +119,18 @@ class OrderViewSet(viewsets.ModelViewSet):
             print(f"Order status changed from {old_status} to {instance.status} for order {instance.id}")
             print(f"User performing update: {request.user.username} (ID: {request.user.id}, IsAuthenticated: {request.user.is_authenticated})")
             # status degisikligini loglama
-            # gereksiz log_user_action cagrısını kaldirma, notify_order_status_change tarafindan halledildi
-            # log_user_action(
-            #     user=request.user,
-            #     action='order_status_changed',
-            #     resource_type='order',
-            #     resource_id=instance.id,
-            #     details={
-            #         'old_status': old_status,
-            #         'new_status': instance.status,
-            #         'customer': instance.user.username
-            #     },
-            #     request=request
-            # )
+            log_user_action(
+                user=request.user,
+                action='order_status_changed',
+                resource_type='order',
+                resource_id=instance.id,
+                 details={
+                    'old_status': old_status,
+                    'new_status': instance.status,
+                    'customer': instance.user.username
+                 },
+                 request=request
+             )
             print(f"log_user_action for order status change called.")
             
             # bildirimleri gonderme
@@ -260,7 +279,7 @@ class OrderItemViewSet(viewsets.ModelViewSet):
         print(f"Order Item ID: {instance.id}, Associated Order User ID: {instance.order.user_id}, Owner ID: {instance.order.user.id}, Request User ID: {user.id}")
         
         # owner veya staff/admin line itemlari cancel edebilir
-        if not (getattr(user, 'role', 'customer') in ['staff', 'admin'] or instance.order.user.id == user.id):
+        if instance.order.user.id != user.id and not (getattr(user, 'role', 'customer') in ['staff', 'admin']):
             print("Permission denied for OrderItem cancel. User is not staff/admin and not order owner.")
             return Response({'detail': 'Not permitted to cancel this item.'}, status=status.HTTP_403_FORBIDDEN)
         print("Permission granted for OrderItem cancel.")
