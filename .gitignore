@@ -8,3 +8,10 @@ env/
 __pycache__/
 
 .env
+models/
+kantinyonetim/media/audio/
+kantinyonetim/Modelfile
+deneme.py
+llama_test.py
+test_torch.py
+test_whisper.py

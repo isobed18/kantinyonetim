@@ -12,6 +12,13 @@ from .models import Order, OrderItem
 from .serializers import OrderSerializer, OrderItemSerializer
 from apps.users.utils import log_user_action, notify_staff_new_order, notify_order_status_change, create_notification
 from apps.menu.models import MenuItem
+import whisper
+import requests
+from rest_framework.decorators import api_view, permission_classes
+import json
+import tempfile
+import os
+import time
 # Create your views here.
 
 class OrderViewSet(viewsets.ModelViewSet):
@@ -358,3 +365,111 @@ class OrderItemViewSet(viewsets.ModelViewSet):
             request=request
         )
         return super().destroy(request, *args, **kwargs)
+    
+
+
+whisper_model = None
+
+def load_whisper():
+    global whisper_model
+    if whisper_model is None:
+        print("whisper yükleniyor")
+        whisper_model = whisper.load_model("base", device = "cuda" )
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def create_voice_order(request):
+    start_time_whisper = time.time()
+    load_whisper()
+    audio_file = request.FILES.get('audio')
+
+    if not audio_file:
+        return Response({"detail" : "Ses dosyası bulanamadı."}, status=status.HTTP_400_BAD_REQUEST)
+    
+    try:
+        # 1. Dosyayı geçici bir dizine yaz
+        # `tempfile.NamedTemporaryFile` yerine daha kontrollü bir yöntem
+        temp_dir = tempfile.mkdtemp()
+        tmp_file_path = os.path.join(temp_dir, 'voice_order.mp3')
+        
+        with open(tmp_file_path, 'wb') as tmp_file:
+            tmp_file.write(audio_file.read())
+
+        # 2. Whisper ile transkripsiyon yap
+        result = whisper_model.transcribe(tmp_file_path, language="tr")
+        transcribed_text = result["text"]
+        print(f"Whisper Çıktısı: {transcribed_text}")
+    
+    except Exception as e:
+        return Response({"detail": f"ses dönüştürme hatası: {e}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    
+    finally:
+        # Hata olsa bile dosyayı ve dizini temizle
+        whisper_duration = time.time() - start_time_whisper
+        print(f"whisper çalışma süresi:{whisper_duration}")
+        if tmp_file_path and os.path.exists(tmp_file_path):
+            os.remove(tmp_file_path)
+            os.rmdir(temp_dir)
+
+    
+    menu_items = list(MenuItem.objects.all().values_list('name', flat=True))
+    prompt = f"""
+    You are a canteen order interpretation assistant. Your sole purpose is to parse the user's request and extract order details in a strict JSON format.
+    You must only respond with a JSON object. You must not include any other text or explanation.
+    If you cannot find any valid order from the user's text, return an empty JSON object.
+
+    Available menu items: {', '.join(menu_items)}.
+    JSON format example: {{"orders": [{{"item": "Çay", "quantity": 2}}, {{"item": "Tost", "quantity": 1}}]}}.
+
+    User's text: "{transcribed_text}"
+
+    JSON:
+    """
+    ollama_api_url = "http://localhost:11434/api/generate"
+    start_time_llama = time.time()
+    print(prompt)
+    try:
+        ollama_response = requests.post(
+            ollama_api_url,
+            json={
+                "model" : "llama-3p1-8b",
+                "prompt" : prompt,
+                "stream" : False
+            }
+        )
+        llama_duration = time.time() - start_time_llama
+        print(f"llama duration: {llama_duration}")
+        ollama_response.raise_for_status()
+
+        llm_output = json.loads(ollama_response.text)
+        order_details = json.loads(llm_output['response']).get('orders', [])
+        print(f"llama çıktısı{llm_output}")
+    except Exception as e:
+        return Response({"detail": f"Ollama hata verdi: {e}"}, status = status.HTTP_500_INTERNAL_SERVER_ERROR)
+    if not order_details:
+        return Response({"detail": "sipariş içeriği boş lütfen terkar deneyiniz."})
+    
+    try: 
+        with transaction.atomic():
+            order_serializer = OrderSerializer(data={'user' : request.user.id}, context={'request': request})
+            order_serializer.is_valid(raise_exception=True)
+            order = order_serializer.save(user=request.user)
+            
+            order = order_serializer.save()
+            for item_data in order_details:
+                item_name = item_data.get('item')
+                quantity =  item_data.get('quantity')
+                if not item_name or not quantity:
+                    continue
+                menu_item = MenuItem.objects.get(name__iexact = item_name)
+                order_item_data = {
+                    "order" : order.id,
+                    "menu_item" : menu_item.id,
+                    "quantity" : quantity
+                }
+                order_item_serializer = OrderItemSerializer(data=order_item_data, context={'request': request})
+                order_item_serializer.is_valid(raise_exception=True)
+                order_item_serializer.save()
+        return Response( {"message": "sesli sipariş alındı", "order_id" : order.id, "transcribed_text": transcribed_text}, status = status.HTTP_201_CREATED)
+    except Exception as e:
+        return Response( {"detail": f"siparişte beklenmedik hata oluştu: {e}"})
