@@ -1,7 +1,8 @@
 import requests
 
 API_URL = "http://localhost:8000/api/voice-order/"
-ACCESS_TOKEN = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlbl90eXBlIjoiYWNjZXNzIiwiZXhwIjoxNzU1Njg4MDM3LCJpYXQiOjE3NTU2ODYyMzcsImp0aSI6IjRlYTRjNWY3NTNlZjRmODVhYzRkYTNmYWUzYjNiMDZiIiwidXNlcl9pZCI6IjYifQ.svAcAaNnveeF_C9EIFNXWb3WrYZjQkkEiregmg9m5Ss"
+ACCESS_TOKEN = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlbl90eXBlIjoiYWNjZXNzIiwiZXhwIjoxNzU1NjkyODMxLCJpYXQiOjE3NTU2OTEwMzEsImp0aSI6IjA0NjIwNWQzNGZlZDRmZDc5ZTNhZGNjMzcxMDE2ZGZkIiwidXNlcl9pZCI6IjYifQ.UbpdpndJ77OzpDEHa_Ub3R9jH_nwNMsChHAbZJqYRRo"
+
 
 AUDIO_FILE_PATH = r"C:\Users\ishak\kantinyonetimproje\kantinyonetim\media\audio\siparisdeneme2.mp3" 
 
@@ -19,8 +20,8 @@ try:
     print("yanıt:", response.json())
 except requests.exceptions.HTTPError as err:
     print(f"HTTP Hatası: {err}")
-    print("Yanıt:", err.response.json())
+    print("yanıt:", err.response.json())
 except FileNotFoundError:
-    print(f"Hata: Dosya bulunamadı - {AUDIO_FILE_PATH}")
+    print(f"hata Dosya bulunamıyor - {AUDIO_FILE_PATH}")
 except Exception as e:
-    print(f"Beklenmeyen bir hata oluştu: {e}")
+    print(f"beklenmeyen bir hata oluştu: {e}")

@@ -19,6 +19,7 @@ import json
 import tempfile
 import os
 import time
+import re
 # Create your views here.
 
 class OrderViewSet(viewsets.ModelViewSet):
@@ -387,15 +388,14 @@ def create_voice_order(request):
         return Response({"detail" : "Ses dosyası bulanamadı."}, status=status.HTTP_400_BAD_REQUEST)
     
     try:
-        # 1. Dosyayı geçici bir dizine yaz
-        # `tempfile.NamedTemporaryFile` yerine daha kontrollü bir yöntem
+        # geçici dosyaya yazma        
         temp_dir = tempfile.mkdtemp()
         tmp_file_path = os.path.join(temp_dir, 'voice_order.mp3')
         
         with open(tmp_file_path, 'wb') as tmp_file:
             tmp_file.write(audio_file.read())
 
-        # 2. Whisper ile transkripsiyon yap
+        # whisper transkripsyon 
         result = whisper_model.transcribe(tmp_file_path, language="tr")
         transcribed_text = result["text"]
         print(f"Whisper Çıktısı: {transcribed_text}")
@@ -404,24 +404,23 @@ def create_voice_order(request):
         return Response({"detail": f"ses dönüştürme hatası: {e}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     
     finally:
-        # Hata olsa bile dosyayı ve dizini temizle
+        # dosyayı temizleme
         whisper_duration = time.time() - start_time_whisper
         print(f"whisper çalışma süresi:{whisper_duration}")
         if tmp_file_path and os.path.exists(tmp_file_path):
             os.remove(tmp_file_path)
             os.rmdir(temp_dir)
 
-    
+    # menu
     menu_items = list(MenuItem.objects.all().values_list('name', flat=True))
+    
     prompt = f"""
-    You are a canteen order interpretation assistant. Your sole purpose is to parse the user's request and extract order details in a strict JSON format.
-    You must only respond with a JSON object. You must not include any other text or explanation.
-    If you cannot find any valid order from the user's text, return an empty JSON object.
-
-    Available menu items: {', '.join(menu_items)}.
+    Sen bir kantin sipariş asistanısın. Kullanıcının siparişini JSON formatında çıkar. Sadece JSON döndür, başka bir şey yazma.
+    Mevcut ürünler: adana, çay, ayran, tavuk döner, T-bone, patates kızartması, fırın sütlaç, tost. Yazıyla yazılmış sayıları, sayıya dönüştür.
+    example: 10 thousand == 10000
     JSON format example: {{"orders": [{{"item": "Çay", "quantity": 2}}, {{"item": "Tost", "quantity": 1}}]}}.
 
-    User's text: "{transcribed_text}"
+    User's text: "25 çay, pardon 28 oldu, abi sen ne alırsın, abime bir tost, yanına ne alırsın, yanına ayran alayım"
 
     JSON:
     """
@@ -434,7 +433,8 @@ def create_voice_order(request):
             json={
                 "model" : "llama-3p1-8b",
                 "prompt" : prompt,
-                "stream" : False
+                "stream" : False,
+                
             }
         )
         llama_duration = time.time() - start_time_llama
