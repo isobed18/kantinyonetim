@@ -375,7 +375,7 @@ def load_whisper():
     global whisper_model
     if whisper_model is None:
         print("whisper yükleniyor")
-        whisper_model = whisper.load_model("base", device = "cuda" )
+        whisper_model = whisper.load_model("small", device = "cuda" )
 
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
@@ -383,24 +383,26 @@ def create_voice_order(request):
     start_time_whisper = time.time()
     load_whisper()
     audio_file = request.FILES.get('audio')
-
+    print("ses dosyası alındı")
     if not audio_file:
         return Response({"detail" : "Ses dosyası bulanamadı."}, status=status.HTTP_400_BAD_REQUEST)
     
     try:
         # geçici dosyaya yazma        
         temp_dir = tempfile.mkdtemp()
-        tmp_file_path = os.path.join(temp_dir, 'voice_order.mp3')
+        tmp_file_path = os.path.join(temp_dir, 'voice_order.m4a')
         
         with open(tmp_file_path, 'wb') as tmp_file:
             tmp_file.write(audio_file.read())
-
         # whisper transkripsyon 
-        result = whisper_model.transcribe(tmp_file_path, language="tr")
+        result = whisper_model.transcribe(tmp_file_path, language="en")
+        
         transcribed_text = result["text"]
         print(f"Whisper Çıktısı: {transcribed_text}")
     
     except Exception as e:
+        print(f"whisper hatası")
+
         return Response({"detail": f"ses dönüştürme hatası: {e}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     
     finally:
@@ -415,9 +417,11 @@ def create_voice_order(request):
     menu_items = list(MenuItem.objects.all().values_list('name', flat=True))
     
     prompt = f"""
-    Sen bir kantin sipariş asistanısın. Kullanıcının siparişini JSON formatında çıkar. Sadece JSON döndür, başka bir şey yazma.
-    Mevcut ürünler: adana, çay, ayran, tavuk döner, T-bone, patates kızartması, fırın sütlaç, tost. Yazıyla yazılmış sayıları, sayıya dönüştür.
-    example: 10 thousand == 10000
+    You are a canteen order interpretation assistant. Your sole purpose is to parse the user's request and extract order details in a strict JSON format.
+    You must only respond with a JSON object. You must not include any other text or explanation.
+    If you cannot find any valid order from the user's text, return an empty JSON object.
+
+    Available menu items: {', '.join(menu_items)}.
     JSON format example: {{"orders": [{{"item": "Çay", "quantity": 2}}, {{"item": "Tost", "quantity": 1}}]}}.
 
     User's text: "{transcribed_text}"
