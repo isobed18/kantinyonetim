@@ -420,7 +420,7 @@ def create_voice_order(request):
     example: 10 thousand == 10000
     JSON format example: {{"orders": [{{"item": "Çay", "quantity": 2}}, {{"item": "Tost", "quantity": 1}}]}}.
 
-    User's text: "25 çay, pardon 28 oldu, abi sen ne alırsın, abime bir tost, yanına ne alırsın, yanına ayran alayım"
+    User's text: "{transcribed_text}"
 
     JSON:
     """
