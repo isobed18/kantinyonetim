@@ -7,8 +7,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { FontAwesome } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import * as FileSystem from 'expo-file-system';
-
-const API_URL = 'http://192.168.1.7:8000/api'; 
+import { API_URL } from '@/constants/constants';
 
 export default function MainPage() {
     const [isRecording, setIsRecording] = useState(false);
@@ -72,7 +71,7 @@ export default function MainPage() {
           router.replace('/login');
           return;
         }
-        // upload async used over fetch, it works this way for backend and its more reliable 
+
         const response = await FileSystem.uploadAsync(
           `${API_URL}/voice-order/`,
           uri,
@@ -80,7 +79,7 @@ export default function MainPage() {
             httpMethod: 'POST',
             uploadType: FileSystem.FileSystemUploadType.MULTIPART,
             fieldName: 'audio',
-            mimeType: 'audio/m4a', // Default format for Expo Audio. You can set this explicitly.
+            mimeType: 'audio/m4a',
             headers: {
               'Authorization': `Bearer ${accessToken}`,
             },

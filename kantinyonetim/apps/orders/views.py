@@ -395,7 +395,7 @@ def create_voice_order(request):
         with open(tmp_file_path, 'wb') as tmp_file:
             tmp_file.write(audio_file.read())
         # whisper transkripsyon 
-        result = whisper_model.transcribe(tmp_file_path, language="en")
+        result = whisper_model.transcribe(tmp_file_path, language="tr")
         
         transcribed_text = result["text"]
         print(f"Whisper Çıktısı: {transcribed_text}")

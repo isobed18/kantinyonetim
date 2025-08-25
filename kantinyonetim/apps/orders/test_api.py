@@ -1,10 +1,10 @@
 import requests
 
 API_URL = "http://localhost:8000/api/voice-order/"
-ACCESS_TOKEN = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlbl90eXBlIjoiYWNjZXNzIiwiZXhwIjoxNzU1ODA2NjYwLCJpYXQiOjE3NTU4MDQ4NjAsImp0aSI6IjNkYjFlYzFjNzFiYTQwMjg4OGQxNmM1ZDNhZGFhYjQyIiwidXNlcl9pZCI6IjQifQ.H_TyVjfLJGJ_2IBa8ZGM5er404NM_RKDJ9vj_PuzreQ"
+ACCESS_TOKEN = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlbl90eXBlIjoiYWNjZXNzIiwiZXhwIjoxNzU1ODczMTg1LCJpYXQiOjE3NTU4NzEzODUsImp0aSI6IjEyY2U5MjIwNGJmOTQ5ZDZhYWM4ZmJkYzE3NGVlNGM0IiwidXNlcl9pZCI6IjYifQ.LJswch8HXUReNYYsrQOI6qqXzsiiImGidpcWdHgAg2M"
 
 
-AUDIO_FILE_PATH = r"C:\Users\ishak\kantinyonetimproje\kantinyonetim\media\audio\siparisdeneme2.m4a" 
+AUDIO_FILE_PATH = r"C:\Users\ishak\kantinyonetimproje\kantinyonetim\media\audio\deneme2.ogg" 
 
 try: 
     with open(AUDIO_FILE_PATH, 'rb') as audio_file:

@@ -4,8 +4,7 @@ import { View, Text, TextInput, Button, StyleSheet, Alert, ActivityIndicator } f
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRouter } from 'expo-router';
 
-const API_URL = 'http://192.168.1.7:8000/api'; 
-
+import { API_URL } from '@/constants/constants';
 export default function LoginScreen() {
     const [username, setUsername] = useState('');
     const [password, setPassword] = useState('');
@@ -21,6 +20,8 @@ export default function LoginScreen() {
         setLoading(true);
 
         try {
+            console.log(API_URL)
+
             const response = await fetch(`${API_URL}/token/`, {
                 method: 'POST',
                 headers: {
