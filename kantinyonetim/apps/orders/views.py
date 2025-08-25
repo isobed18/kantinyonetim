@@ -374,106 +374,141 @@ whisper_model = None
 def load_whisper():
     global whisper_model
     if whisper_model is None:
-        print("whisper yükleniyor")
-        whisper_model = whisper.load_model("small", device = "cuda" )
+        print("Whisper modeli yükleniyor...")
+        whisper_model = whisper.load_model("small", device="cuda")
+        print("Whisper modeli yüklendi.")
 
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
-def create_voice_order(request):
-    start_time_whisper = time.time()
+def parse_voice_order(request):
     load_whisper()
     audio_file = request.FILES.get('audio')
-    print("ses dosyası alındı")
     if not audio_file:
-        return Response({"detail" : "Ses dosyası bulanamadı."}, status=status.HTTP_400_BAD_REQUEST)
-    
+        return Response({"detail": "Ses dosyası bulunamadı."}, status=status.HTTP_400_BAD_REQUEST)
+
+    tmp_file_path = None
+    temp_dir = None
     try:
-        # geçici dosyaya yazma        
         temp_dir = tempfile.mkdtemp()
         tmp_file_path = os.path.join(temp_dir, 'voice_order.m4a')
         
         with open(tmp_file_path, 'wb') as tmp_file:
-            tmp_file.write(audio_file.read())
-        # whisper transkripsyon 
-        result = whisper_model.transcribe(tmp_file_path, language="tr")
+            for chunk in audio_file.chunks():
+                tmp_file.write(chunk)
         
+        result = whisper_model.transcribe(tmp_file_path, language="tr")
         transcribed_text = result["text"]
         print(f"Whisper Çıktısı: {transcribed_text}")
-    
-    except Exception as e:
-        print(f"whisper hatası")
 
-        return Response({"detail": f"ses dönüştürme hatası: {e}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-    
+    except Exception as e:
+        return Response({"detail": f"Ses dönüştürme hatası: {e}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     finally:
-        # dosyayı temizleme
-        whisper_duration = time.time() - start_time_whisper
-        print(f"whisper çalışma süresi:{whisper_duration}")
         if tmp_file_path and os.path.exists(tmp_file_path):
             os.remove(tmp_file_path)
+        if temp_dir and os.path.exists(temp_dir):
             os.rmdir(temp_dir)
 
-    # menu
     menu_items = list(MenuItem.objects.all().values_list('name', flat=True))
-    
     prompt = f"""
-    You are a canteen order interpretation assistant. Your sole purpose is to parse the user's request and extract order details in a strict JSON format.
-    You must only respond with a JSON object. You must not include any other text or explanation.
-    If you cannot find any valid order from the user's text, return an empty JSON object.
+    You are a canteen order interpretation assistant. Your task is to parse the user's request into a strict JSON format.
+    1. Identify the menu items and their quantities.
+    2. Extract any specific details or special requests as a separate "notes" string. For example, "soğansız" (without onion), "az şekerli" (less sugar), "biri demli olsun" (one should be strong).
+    3. If no special requests are made, the "notes" field should be an empty string.
+    4. You must only respond with a JSON object. Do not include any other text.
 
     Available menu items: {', '.join(menu_items)}.
-    JSON format example: {{"orders": [{{"item": "Çay", "quantity": 2}}, {{"item": "Tost", "quantity": 1}}]}}.
+    JSON format example: {{"orders": [{{"item": "Çay", "quantity": 2}}, {{"item": "Tost", "quantity": 1}}], "notes": "Tost kaşarlı olsun, çaylardan biri açık olsun."}}.
 
     User's text: "{transcribed_text}"
 
     JSON:
     """
+    
     ollama_api_url = "http://localhost:11434/api/generate"
-    start_time_llama = time.time()
-    print(prompt)
     try:
         ollama_response = requests.post(
             ollama_api_url,
-            json={
-                "model" : "llama-3p1-8b",
-                "prompt" : prompt,
-                "stream" : False,
-                
-            }
+            json={"model": "llama-3p1-8b", "prompt": prompt, "stream": False}
         )
-        llama_duration = time.time() - start_time_llama
-        print(f"llama duration: {llama_duration}")
         ollama_response.raise_for_status()
 
         llm_output = json.loads(ollama_response.text)
-        order_details = json.loads(llm_output['response']).get('orders', [])
-        print(f"llama çıktısı{llm_output}")
+        llm_output_json = json.loads(llm_output['response'])
+        order_details = llm_output_json.get('orders', [])
+        order_notes = llm_output_json.get('notes', '')
+
+        summary = {
+            "items": [],
+            "notes": order_notes,
+            "transcribed_text": transcribed_text
+        }
+
+        for item_data in order_details:
+            try:
+                menu_item = MenuItem.objects.get(name__iexact=item_data.get('item'))
+                summary['items'].append({
+                    'menu_item_id': menu_item.id,
+                    'name': menu_item.name,
+                    'quantity': item_data.get('quantity'),
+                    'price': str(menu_item.price)
+                })
+            except MenuItem.DoesNotExist:
+                pass
+
+        if not summary['items']:
+            return Response({"detail": "Siparişinizde geçerli bir ürün bulunamadı."}, status=status.HTTP_400_BAD_REQUEST)
+
+        return Response(summary, status=status.HTTP_200_OK)
+
     except Exception as e:
-        return Response({"detail": f"Ollama hata verdi: {e}"}, status = status.HTTP_500_INTERNAL_SERVER_ERROR)
-    if not order_details:
-        return Response({"detail": "sipariş içeriği boş lütfen terkar deneyiniz."})
-    
-    try: 
-        with transaction.atomic():
-            order_serializer = OrderSerializer(data={'user' : request.user.id}, context={'request': request})
-            order_serializer.is_valid(raise_exception=True)
-            order = order_serializer.save(user=request.user)
-            
-            order = order_serializer.save()
-            for item_data in order_details:
-                item_name = item_data.get('item')
-                quantity =  item_data.get('quantity')
-                if not item_name or not quantity:
-                    continue
-                menu_item = MenuItem.objects.get(name__iexact = item_name)
-                order_item_data = {
-                    "order" : order.id,
-                    "menu_item" : menu_item.id,
-                    "quantity" : quantity
-                }
-                order_item_serializer = OrderItemSerializer(data=order_item_data, context={'request': request})
-                order_item_serializer.is_valid(raise_exception=True)
-                order_item_serializer.save()
-        return Response( {"message": "sesli sipariş alındı", "order_id" : order.id, "transcribed_text": transcribed_text}, status = status.HTTP_201_CREATED)
-    except Exception as e:
-        return Response( {"detail": f"siparişte beklenmedik hata oluştu: {e}"})
+        return Response({"detail": f"Sipariş analizi sırasında hata: {e}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+@transaction.atomic
+def confirm_and_create_order(request):
+    user = request.user
+    cart_items = request.data.get('items', [])
+    notes = request.data.get('notes', '')
+
+    if not cart_items:
+        return Response({'detail': 'Sepet boş olamaz.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    for item_data in cart_items:
+        menu_item_id = item_data.get('menu_item_id')
+        quantity = item_data.get('quantity')
+        try:
+            stock = Stock.objects.select_for_update().get(menu_item_id=menu_item_id)
+            if stock.quantity < quantity:
+                menu_item = MenuItem.objects.get(id=menu_item_id)
+                return Response({'detail': f'"{menu_item.name}" için stok yetersiz.'}, status=status.HTTP_400_BAD_REQUEST)
+        except (Stock.DoesNotExist, MenuItem.DoesNotExist):
+            return Response({'detail': f'ID {menu_item_id} olan ürün bulunamadı veya stok bilgisi yok.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    order = Order.objects.create(user=user, notes=notes)
+    for item_data in cart_items:
+        menu_item = MenuItem.objects.get(id=item_data.get('menu_item_id'))
+        quantity = item_data.get('quantity')
+        OrderItem.objects.create(
+            order=order,
+            menu_item=menu_item,
+            quantity=quantity,
+            price_at_order_time=menu_item.price
+        )
+        stock = Stock.objects.get(menu_item=menu_item)
+        stock.quantity -= quantity
+        stock.save()
+
+    order.update_total()
+
+    log_user_action(
+        user=user,
+        action='order_placed',
+        resource_type='order',
+        resource_id=order.id,
+        details={'total': str(order.total), 'item_count': len(cart_items), 'notes': notes, 'method': 'voice'},
+        request=request
+    )
+    notify_staff_new_order(order, user)
+
+    return Response(OrderSerializer(order, context={'request': request}).data, status=status.HTTP_201_CREATED)

@@ -49,7 +49,7 @@ export default function TabLayout() {
     fetchUserRole();
   }, []);
 
-  if (loading) {
+  if (loading || !userRole) {
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" />
@@ -83,7 +83,7 @@ export default function TabLayout() {
         options={{
           title: 'Sesli Sipariş',
           tabBarIcon: ({ color, focused }) => getTabBarIcon('microphone', focused, color),
-          // Sadece customer görebilir, diğerleri için null
+          // sadece customer görebilir diğerleri için null
           href: isCustomer ? '/home' : null,
         }}
       />
@@ -110,7 +110,7 @@ export default function TabLayout() {
         options={{
           title: 'Profil',
           tabBarIcon: ({ color, focused }) => getTabBarIcon('user', focused, color),
-          // Herkes görebilir, bu yüzden href'i null yapmıyoruz.
+          // Herkes görebilir href null değil
         }}
       />
     </Tabs>

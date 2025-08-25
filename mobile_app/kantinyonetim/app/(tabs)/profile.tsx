@@ -1,6 +1,6 @@
 // mobile_app/kantinyonetim/app/(tabs)/profile.tsx
-import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, Alert, TouchableOpacity, ActivityIndicator, Button } from 'react-native';
+import React, { useState, useEffect, useCallback } from 'react';
+import { View, Text, StyleSheet, ScrollView, Alert, TouchableOpacity, ActivityIndicator, Button, RefreshControl } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRouter } from 'expo-router';
@@ -31,7 +31,7 @@ export default function ProfileScreen() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const router = useRouter();
-
+  const [refreshing, setRefreshing] = useState(false);
   const handleLogout = async () => {
     Alert.alert(
       'Çıkış Yap',
@@ -169,6 +169,14 @@ export default function ProfileScreen() {
   useEffect(() => {
     fetchUserProfile();
     fetchOrders();
+    const interval = setInterval(fetchOrders, 15000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await fetchOrders();
+    setRefreshing(false);
   }, []);
 
   const getStatusStyle = (status: string) => {
@@ -203,7 +211,10 @@ export default function ProfileScreen() {
       {isLoading ? (
         <ActivityIndicator size="large" color="#0000ff" />
       ) : (
-        <ScrollView style={styles.orderList}>
+        <ScrollView 
+        style={styles.orderList}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={["#0000ff"]} tintColor={"#0000ff"}/>}
+      >
           {orders.length > 0 ? (
             orders.map((order: Order) => (
               <View key={order.id} style={styles.orderCard}>
