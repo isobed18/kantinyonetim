@@ -10,6 +10,8 @@ interface OrderItem {
   id: number;
   menu_item_name: string;
   quantity: number;
+  line_total: string;
+  price_at_order_time: string;
 }
 
 interface Order {
@@ -88,7 +90,7 @@ export default function StaffPage() {
 
       if (response.ok) {
         Alert.alert('Başarılı', `Sipariş #${orderId} durumu güncellendi: ${newStatus}`);
-        fetchOrders(); // Listeyi yenile
+        fetchOrders(); 
       } else {
         const errorData = await response.json();
         Alert.alert('Hata', errorData.detail || 'Sipariş durumu güncellenemedi.');
@@ -140,7 +142,7 @@ export default function StaffPage() {
     fetchOrders();
     const interval = setInterval(() => {
       fetchOrders();
-    }, 10000); // 10 saniyede bir kontrol et
+    }, 10000); 
     return () => clearInterval(interval);
   }, []);
 
@@ -170,10 +172,11 @@ export default function StaffPage() {
                 <View style={styles.orderItems}>
                   {order.order_items.map((item: OrderItem) => (
                     <Text key={item.id} style={styles.orderItem}>
-                      - {item.menu_item_name} (x{item.quantity})
+                      - {item.menu_item_name} (x{item.quantity}) - Toplam: ₺{item.line_total}
                     </Text>
                   ))}
                 </View>
+                <Text style={styles.orderTotal}>Toplam Fiyat: ₺{order.total}</Text> 
                 <View style={styles.buttonContainer}>
                   <TouchableOpacity
                     style={styles.deliveredButton}
@@ -241,6 +244,13 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#555',
   },
+  orderTotal: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#28a745',
+    marginTop: 5,
+    textAlign: 'right',
+  },
   buttonContainer: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -272,7 +282,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#666',
   },
-  // Eksik olan stil tanımları buraya eklendi
   pendingStatus: { backgroundColor: '#ffc107' },
   preparingStatus: { backgroundColor: '#17a2b8' },
   readyStatus: { backgroundColor: '#28a745' },
