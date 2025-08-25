@@ -60,81 +60,60 @@ export default function TabLayout() {
   if (!userRole) {
       return <Redirect href="/login" />;
   }
-  
+
   const getTabBarIcon = (name: React.ComponentProps<typeof FontAwesome>['name'], focused: boolean, color: string) => {
     return <FontAwesome name={name} color={color} size={24} />;
   };
 
-  // Rol tabanlı sekme düzenini koşullu olarak render etme
-  if (userRole === 'customer') {
-    return (
-      <Tabs
-        key={userRole}
-        screenOptions={{
-          tabBarActiveTintColor: Colors[colorScheme ?? 'light'].tint,
-          headerShown: false,
-          tabBarStyle: {
-            backgroundColor: Colors[colorScheme ?? 'light'].background,
-            borderTopColor: Colors[colorScheme ?? 'light'].text,
-          },
-        }}>
-        <Tabs.Screen
-          name="home"
-          options={{
-            title: 'Sesli Sipariş',
-            tabBarIcon: ({ color, focused }) => getTabBarIcon('microphone', focused, color),
-          }}
-        />
-        <Tabs.Screen
-          name="menu"
-          options={{
-            title: 'Menü',
-            tabBarIcon: ({ color, focused }) => getTabBarIcon('cutlery', focused, color),
-          }}
-        />
-        <Tabs.Screen
-          name="profile"
-          options={{
-            title: 'Profil',
-            tabBarIcon: ({ color, focused }) => getTabBarIcon('user', focused, color),
-          }}
-        />
-      </Tabs>
-    );
-  } else if (userRole === 'staff' || userRole === 'admin') {
-    return (
-      <Tabs
-        key={userRole}
-        screenOptions={{
-          tabBarActiveTintColor: Colors[colorScheme ?? 'light'].tint,
-          headerShown: false,
-          tabBarStyle: {
-            backgroundColor: Colors[colorScheme ?? 'light'].background,
-            borderTopColor: Colors[colorScheme ?? 'light'].text,
-          },
-        }}>
-        <Tabs.Screen
-          name="staff"
-          options={{
-            title: 'Sipariş Yönetimi',
-            tabBarIcon: ({ color, focused }) => getTabBarIcon('list-ul', focused, color),
-          }}
-        />
-        <Tabs.Screen
-          name="profile"
-          options={{
-            title: 'Profil',
-            tabBarIcon: ({ color, focused }) => getTabBarIcon('user', focused, color),
-          }}
-        />
-      </Tabs>
-    );
-  }
+  const isCustomer = userRole === 'customer';
+  const isStaffOrAdmin = userRole === 'staff' || userRole === 'admin';
 
   return (
-    <View style={styles.loadingContainer}>
-      <ActivityIndicator size="large" />
-    </View>
+    <Tabs
+      screenOptions={{
+        tabBarActiveTintColor: Colors[colorScheme ?? 'light'].tint,
+        headerShown: false,
+        tabBarStyle: {
+          backgroundColor: Colors[colorScheme ?? 'light'].background,
+          borderTopColor: Colors[colorScheme ?? 'light'].text,
+        },
+      }}>
+      <Tabs.Screen
+        name="home"
+        options={{
+          title: 'Sesli Sipariş',
+          tabBarIcon: ({ color, focused }) => getTabBarIcon('microphone', focused, color),
+          // Sadece customer görebilir, diğerleri için null
+          href: isCustomer ? '/home' : null,
+        }}
+      />
+      <Tabs.Screen
+        name="menu"
+        options={{
+          title: 'Menü',
+          tabBarIcon: ({ color, focused }) => getTabBarIcon('cutlery', focused, color),
+          // Sadece customer görebilir
+          href: isCustomer ? '/menu' : null,
+        }}
+      />
+      <Tabs.Screen
+        name="staff"
+        options={{
+          title: 'Sipariş Yönetimi',
+          tabBarIcon: ({ color, focused }) => getTabBarIcon('list-ul', focused, color),
+          // Sadece staff ve admin görebilir
+          href: isStaffOrAdmin ? '/staff' : null,
+        }}
+      />
+      <Tabs.Screen
+        name="profile"
+        options={{
+          title: 'Profil',
+          tabBarIcon: ({ color, focused }) => getTabBarIcon('user', focused, color),
+          // Herkes görebilir, bu yüzden href'i null yapmıyoruz.
+        }}
+      />
+    </Tabs>
   );
 }
 

@@ -4,7 +4,7 @@ import { View, Text, StyleSheet, ScrollView, ActivityIndicator, Alert, Image } f
 import { SafeAreaView } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRouter } from 'expo-router';
-import { API_URL, BASE_URL } from '@/constants/constants';
+import { API_URL} from '@/constants/constants';
 
 interface MenuItem {
   id: number;
@@ -88,8 +88,8 @@ export default function MenuScreen() {
                 <View key={item.id} style={styles.menuItemCard}>
                   {item.image && (
                     <Image
-                      source={{ uri: `${BASE_URL}${item.image}` }}
-                      style={styles.menuItemImage}
+                        source={{ uri: item.image }}
+                        style={styles.menuItemImage}
                     />
                   )}
                   <View style={styles.itemDetails}>
