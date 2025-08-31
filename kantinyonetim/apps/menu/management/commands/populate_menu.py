@@ -57,7 +57,7 @@ MENU_DATA = [
         'description': 'Nane ferahlığıyla hazırlanmış ev yapımı limonata.',
         'price': 55.00,
         'category': 'icecek',
-        'image_url': 'https://www.instagram.com/p/DNtM2_r2ERE/'
+        'image_url': 'https://i.lezzet.com.tr/images-xxlarge-recipe/ev-yapimi-konsantre-limonata-01e50b99-5890-411f-a4c2-997a71e8a5cc.jpg'
     },
     {
         'name': 'Tavuk Döner Dürüm',
@@ -138,13 +138,7 @@ MENU_DATA = [
         'image_url': 'https://images.migrosone.com/sanalmarket/product/05104002/5104002-63284f-1650x1650.jpg'
     },
     
-    {
-        'name': 'Trileçe',
-        'description': 'Karamel soslu, sütlü ve hafif lezzet.',
-        'price': 90.00,
-        'category': 'tatli',
-        'image_url': 'https://pixabay.com/images/search/trilece/'
-    }
+    
 ]
 
 
