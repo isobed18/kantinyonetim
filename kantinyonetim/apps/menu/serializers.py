@@ -5,6 +5,8 @@ from apps.users.utils import log_user_action
 from django.db import transaction
 
 class MenuItemSerializer(serializers.ModelSerializer):
+    image = serializers.ImageField(max_length=None, use_url=True)
+
     class Meta:
         model = MenuItem
         fields = '__all__'
