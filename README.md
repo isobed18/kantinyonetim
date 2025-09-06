@@ -241,5 +241,4 @@ npx expo start --ios
 
 ---
 
-## Lisans
-Proje içinde açıkça belirtilmemiştir. Kurum içi/kişisel kullanım için geliştirildiği varsayılmaktadır. Lisans eklemek isterseniz `LICENSE` dosyası oluşturun.
+
